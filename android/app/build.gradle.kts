@@ -12,7 +12,7 @@ import java.io.FileInputStream
 
 android {
     // Cambia esto por tu paquete real y úsalo igual en Firebase:
-    namespace = "com.tuempresa.proyectomovil"
+    namespace = "com.example.proyectomovil"
 
     // Usar las versiones que define Flutter (están bien):
     compileSdk = flutter.compileSdkVersion
@@ -20,7 +20,7 @@ android {
 
     defaultConfig {
         // Debe coincidir con Firebase (google-services.json):
-        applicationId = "com.tuempresa.proyectomovil"
+        applicationId = "com.example.proyectomovil"
         minSdk = maxOf(23, flutter.minSdkVersion) // fuerza 23 si fuera menor
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

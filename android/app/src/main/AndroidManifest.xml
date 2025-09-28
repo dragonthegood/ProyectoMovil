@@ -11,7 +11,7 @@
     <!-- <application android:usesCleartextTraffic="true" ... > -->
 
     <application
-        android:label="proyectomovil"
+        android:label="BlocNotas"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
