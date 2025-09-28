@@ -22,7 +22,7 @@ class _Session {
   String? title;
   String? content;
   String? query;
-  String? pendingSlot; // 'title', 'content', 'query'
+  String? pendingSlot; // 'title', 'content', 'query', 'confirm'
   void clear() {
     intent = _Intent.none;
     title = null;
@@ -42,6 +42,9 @@ class VoiceAssistant {
 
   bool _available = false;
 
+  // ===== Config =====
+  bool _confirmCreateEdit = true;
+
   // ===== Estado expuesto al overlay =====
   final ValueNotifier<bool> isListening = ValueNotifier(false);
   final ValueNotifier<String> liveText = ValueNotifier('');
@@ -53,8 +56,8 @@ class VoiceAssistant {
   final _Session _session = _Session();
 
   // Timers
-  Timer? _autoCloseTimer; // cuando estamos escuchando
-  Timer? _idleTimer; // cuando el overlay está abierto sin escuchar
+  Timer? _autoCloseTimer;
+  Timer? _idleTimer;
 
   // ========= Inicialización =========
   Future<void> init() async {
@@ -196,10 +199,10 @@ class VoiceAssistant {
     return m2?.group(1);
   }
 
-  // Recorte para TÍTULOS (agresivo con conectores)
+  // Recorte para TÍTULOS (no corta por " y " ahora) // CHANGED
   String _stripTitle(String s) {
     final cuts = [
-      ' con ', ' y ', ' que ', ' donde ', ' a ', ' para ', ' por ',
+      ' con ', ' que ', ' donde ', ' a ', ' para ', ' por ',
       ' del ', ' de ', '.', ',', ' por favor'
     ];
     var out = s;
@@ -234,24 +237,39 @@ class VoiceAssistant {
     return null;
   }
 
-  // ======== Detectores de intención (flexibles) ========
-  bool _isOpenNoteIntent(String s) {
-    return _hasAny(s, ['abrir','abre','abreme','mostrar','muestrame','quiero ver','ver','ensename'])
-           && s.contains('nota');
+  // NEW: como _after, pero corta solo cuando aparece alguno de los "stops"
+  String? _afterUntil(String s, String key, List<String> stops) { // NEW
+    final i = s.indexOf(key);
+    if (i < 0) return null;
+    var cut = s.substring(i + key.length).trim();
+    if (cut.isEmpty) return null;
+    var end = cut.length;
+    for (final st in stops) {
+      final j = cut.indexOf(st);
+      if (j >= 0 && j < end) end = j;
+    }
+    return cut.substring(0, end).trim();
   }
 
-  bool _isCreateNoteIntent(String s) {
-    return (_hasAnyWord(s, ['crear','crea','nueva','agregar','agrega','anota','apunta','toma nota']) && s.contains('nota'))
-           || _hasAnyWord(s, ['anota','apunta']); // "anota compras"
+  String? _afterManyUntil(String s, List<String> keys, List<String> stops) { // NEW
+    for (final k in keys) {
+      final v = _afterUntil(s, k, stops);
+      if (v != null && v.isNotEmpty) return v;
+    }
+    return null;
   }
+
+  // ======== Detectores de intención ========
+  bool _isOpenNoteIntent(String s) =>
+      _hasAny(s, ['abrir','abre','abreme','mostrar','muestrame','quiero ver','ver','ensename']) && s.contains('nota');
+
+  bool _isCreateNoteIntent(String s) =>
+      (_hasAnyWord(s, ['crear','crea','nueva','agregar','agrega','anota','apunta','toma nota']) && s.contains('nota'))
+      || _hasAnyWord(s, ['anota','apunta']);
 
   bool _isDeleteNoteIntent(String s) {
     final verbs = ['eliminar','elimina','elimine','borrar','borra','borre','quitar','quita','quite'];
-    final movePhrases = [
-      'enviar a eliminados','mandar a eliminados',
-      'enviar a la papelera','mandar a la papelera',
-      'mover a papelera','mover a la papelera','tirar a la papelera'
-    ];
+    final movePhrases = ['enviar a eliminados','mandar a eliminados','enviar a la papelera','mandar a la papelera','mover a papelera','mover a la papelera','tirar a la papelera'];
     return (_hasAnyWord(s, verbs) && s.contains('nota')) || _hasAny(s, movePhrases);
   }
 
@@ -261,16 +279,13 @@ class VoiceAssistant {
     return (_hasAnyWord(s, verbs) && s.contains('nota')) || _hasAny(s, phrases);
   }
 
-  bool _isEditNoteIntent(String s) {
-    return _hasAnyWord(s, ['editar','edita','actualizar','actualiza','modificar','modifica','cambiar','cambia'])
-           && s.contains('nota');
-  }
+  bool _isEditNoteIntent(String s) =>
+      _hasAnyWord(s, ['editar','edita','actualizar','actualiza','modificar','modifica','cambiar','cambia']) && s.contains('nota');
 
-  bool _isSearchIntent(String s) {
-    return _hasAnyWord(s, ['buscar','busca','encuentra','encontrar','filtrar','filtra','listar','lista']);
-  }
+  bool _isSearchIntent(String s) =>
+      _hasAnyWord(s, ['buscar','busca','encuentra','encontrar','filtrar','filtra','listar','lista']);
 
-  // ======== Extractores flexibles de slots ========
+  // ======== Extractores ========
 
   // Abrir
   String? _extractOpenTitle(String raw, String lowerNorm) {
@@ -291,20 +306,16 @@ class VoiceAssistant {
     return _stripTitle(found);
   }
 
-  // Crear (fuerte): “anota X que diga Y”, “crear nota X con contenido Y”…
+  // Crear (fuerte): “anota X que diga Y”, “crear nota X con contenido Y”
   ({String? title, String? content}) _extractCreate(String raw, String lower) {
-    // 1) Regla fuerte: título + contenido en una sola frase
+    // 1) título + contenido en una sola frase
     final both = RegExp(
-      r'''^\s*(?:anota|apunta|toma\s+nota|crea(?:r)?(?:\s+la)?\s+nota|crear(?:\s+la)?\s+nota|crear|crea)\s+  # verbo
-          (?:"([^"]+)"|'([^']+)'|(.+?))\s*                                   # título (g1|g2|g3)
-          (?:[:,-]?\s*)?(?:que\s+diga|con\s+(?:contenido|texto))[:,-]?\s*    # conector
-          (?:"([^"]+)"|'([^']+)'|(.+))\s*$                                   # contenido (g4|g5|g6)
-      ''',
-      multiLine: false,
-      caseSensitive: false,
-      dotAll: true,
+      r'''^\s*(?:anota|apunta|toma\s+nota|crea(?:r)?(?:\s+la)?\s+nota|crear(?:\s+la)?\s+nota|crear|crea)\s+
+          (?:"([^"]+)"|'([^']+)'|(.+?))\s*
+          (?:[:,-]?\s*)?(?:que\s+diga|con\s+(?:contenido|texto))[:,-]?\s*
+          (?:"([^"]+)"|'([^']+)'|(.+))\s*$''',
+      multiLine: false, caseSensitive: false, dotAll: true,
     );
-
     final m = both.firstMatch(raw);
     if (m != null) {
       final t = (m.group(1) ?? m.group(2) ?? m.group(3) ?? '').trim();
@@ -312,11 +323,18 @@ class VoiceAssistant {
       return (title: _stripTitle(t), content: _stripContent(c));
     }
 
-    // 2) Solo título entre comillas
-    String? title = _firstQuoted(raw);
+    // 2) SOLO TÍTULO con claves tipo "de/con título", "titulada", "llamada"  // NEW
+    String? title = _afterManyUntil(
+      lower,
+      ['de titulo','con titulo','titulada','llamada','que se llama'],
+      [' que diga',' con contenido',' con texto']
+    );
     String? content;
 
-    // 3) Título tras claves
+    // 3) Título entre comillas si no se encontró
+    title ??= _firstQuoted(raw);
+
+    // 4) Título tras otras claves estándar
     title ??= _afterMany(lower, [
       'crear la nota llamada','crear la nota titulada','crear la nota que se llama',
       'crear nota llamada','crear nota titulada','crear nota que se llama',
@@ -325,20 +343,16 @@ class VoiceAssistant {
       'nota que se llama','la nota','nota','crear','crea'
     ]);
 
-    // 4) Soporta “anota X”, “apunta X”, “toma nota X”
+    // 5) “anota X”, “apunta X”, “toma nota X”
     title ??= _afterMany(lower, ['anota','apunta','toma nota']);
 
-    // 5) Contenido tras conectores (no recortar por “ y ”)
+    // 6) Contenido (si viene)
     final contentQuoted = RegExp(
       r'''(contenido|texto|que\s+diga|dice)\s+["'](.+?)["']''',
-      caseSensitive: false,
-      dotAll: true,
+      caseSensitive: false, dotAll: true,
     ).firstMatch(raw)?.group(2);
+    content = contentQuoted ?? _afterMany(lower, ['con contenido','con texto','que diga','dice']);
 
-    content = contentQuoted ??
-        _afterMany(lower, ['con contenido','con texto','que diga','dice']);
-
-    // Limpiezas
     if (title != null) title = _stripTitle(title);
     if (content != null) content = _stripContent(content);
 
@@ -380,17 +394,14 @@ class VoiceAssistant {
     return found == null ? null : _stripTitle(found);
   }
 
-  // Editar (también acepta “que diga …” para el nuevo contenido)
+  // Editar (acepta “que diga …” para contenido)
   ({String? title, String? content}) _extractEdit(String raw, String lower) {
-    // Regla fuerte: edita/actualiza/modifica/cambia … que diga …
     final both = RegExp(
       r'''^\s*(?:edita|editar|actualiza|actualizar|modifica|modificar|cambia|cambiar)\s+(?:la\s+)?nota\s+
-          (?:"([^"]+)"|'([^']+)'|(.+?))\s*                                  # título
-          (?:[:,-]?\s*)?(?:que\s+diga|con\s+(?:contenido|texto))[:,-]?\s*   # conector
-          (?:"([^"]+)"|'([^']+)'|(.+))\s*$                                  # contenido
-      ''',
-      caseSensitive: false,
-      dotAll: true,
+          (?:"([^"]+)"|'([^']+)'|(.+?))\s*
+          (?:[:,-]?\s*)?(?:que\s+diga|con\s+(?:contenido|texto))[:,-]?\s*
+          (?:"([^"]+)"|'([^']+)'|(.+))\s*$''',
+      caseSensitive: false, dotAll: true,
     ).firstMatch(raw);
 
     if (both != null) {
@@ -399,29 +410,24 @@ class VoiceAssistant {
       return (title: _stripTitle(t), content: _stripContent(c));
     }
 
-    // Título por claves
-    String? title = _firstQuoted(raw) ??
-        _afterMany(lower, [
-          'edita la nota','editar la nota','editar nota','edita nota',
-          'actualiza la nota','actualizar la nota','actualizar nota','actualiza nota',
-          'modifica la nota','modificar la nota','modificar nota','modifica nota',
-          'cambia la nota','cambiar la nota','cambiar nota','cambia nota',
-          'la nota','nota'
-        ]);
+    String? title = _firstQuoted(raw) ?? _afterMany(lower, [
+      'edita la nota','editar la nota','editar nota','edita nota',
+      'actualiza la nota','actualizar la nota','actualizar nota','actualiza nota',
+      'modifica la nota','modificar la nota','modificar nota','modifica nota',
+      'cambia la nota','cambiar la nota','cambiar nota','cambia nota',
+      'la nota','nota'
+    ]);
 
-    // Contenido nuevo
     String? content;
     final quoted = RegExp(
       r'''(?:con|a|y)\s+(?:nuevo\s+)?(?:contenido|texto|que\s+diga|dice)\s+["'](.+?)["']''',
-      caseSensitive: false,
-      dotAll: true,
+      caseSensitive: false, dotAll: true,
     ).firstMatch(raw)?.group(1);
 
-    content = quoted ??
-        _afterMany(lower, [
-          'con contenido','con texto','que diga','dice',
-          'actualizar con','cambiar a','modificar a','pon el','ponle'
-        ]);
+    content = quoted ?? _afterMany(lower, [
+      'con contenido','con texto','que diga','dice',
+      'actualizar con','cambiar a','modificar a','pon el','ponle'
+    ]);
 
     if (title != null) title = _stripTitle(title);
     if (content != null) content = _stripContent(content);
@@ -432,23 +438,56 @@ class VoiceAssistant {
   // Buscar
   String? _extractQuery(String raw, String lower) {
     final quoted = _firstQuoted(raw);
-    if (quoted != null) return quoted.trim();
+    if (quoted != null) return _stripContent(quoted.trim());
 
-    final keys = [
+    final colon = RegExp(r'^(?:buscar|busca)\s*[:\-]\s*(.+)$', caseSensitive: false, dotAll: true).firstMatch(raw);
+    if (colon != null) {
+      final q = colon.group(1)!.trim();
+      if (q.isNotEmpty) return _stripContent(q);
+    }
+
+    final starters = [
       'buscar','busca','encuentra','encontrar','filtrar','filtra','listar','lista',
       'buscar sobre','buscar de','buscar por','buscar con',
       'notas que contengan','notas con'
     ];
-    for (final k in keys) {
+    for (final k in starters) {
       if (lower.startsWith(k)) {
-        final q = _after(lower, k);
-        if (q != null && q.isNotEmpty) return _stripContent(q);
+        final rest = lower.substring(k.length).trim();
+        if (rest.isNotEmpty) return _stripContent(rest);
       }
     }
-    final any = _afterMany(lower, keys);
+    final any = _afterMany(lower, starters);
     return any == null ? null : _stripContent(any);
   }
 
+  // ======== Confirmación ========
+  bool _isAffirmative(String l) =>
+      _hasAnyWord(l, ['si','ok','okay','vale','claro','correcto','de acuerdo','confirmo','hazlo','adelante','dale','va']);
+  bool _isNegative(String l) =>
+      _hasAnyWord(l, ['no','cancelar','cancela','cancelalo','detener','deten','para','parar']) || _hasAny(l, ['mejor no','no gracias']);
+
+  bool _needConfirmNow() {
+    if (!_confirmCreateEdit) return false;
+    if (!(_session.intent == _Intent.createNote || _session.intent == _Intent.editNote)) return false;
+    final hasTitle = _session.title?.isNotEmpty == true;
+    final hasContent = _session.content?.isNotEmpty == true;
+    return hasTitle && hasContent;
+  }
+
+  Future<void> _askConfirmCurrent(BuildContext context) async {
+    final isCreate = _session.intent == _Intent.createNote;
+    final action = isCreate ? 'crear la nota' : 'actualizar la nota';
+    final t = _session.title ?? '(sin título)';
+    final c = _session.content ?? '(sin contenido)';
+    final msg = 'Título: $t. Contenido: $c. ¿Confirmo $action? Di "sí" o "no".';
+    _session.pendingSlot = 'confirm';
+    prompt.value = msg;
+    await speak(msg);
+    _startIdleTimer(context);
+  }
+
+  // ======== Navegación helper ========
   Future<void> _speakAndNavigate(
     BuildContext context, {
     required String message,
@@ -466,16 +505,12 @@ class VoiceAssistant {
   List<String> _titleCandidates(String q) {
     final s = q.trim();
     final out = <String>{s};
-    if (s.endsWith('r') && s.length > 1) {
-      out.add('${s.substring(0, s.length - 1)}as'); // comprar -> compras
-    }
-    if (s.endsWith('s') && s.length > 1) {
-      out.add(s.substring(0, s.length - 1)); // compras -> compra
-    }
+    if (s.endsWith('r') && s.length > 1) out.add('${s.substring(0, s.length - 1)}as'); // comprar -> compras
+    if (s.endsWith('s') && s.length > 1) out.add(s.substring(0, s.length - 1)); // compras -> compra
     return out.toList();
   }
 
-  // ========= Diálogo: detección + slots =========
+  // ========= Diálogo =========
   Future<void> _handle(BuildContext context, String raw) async {
     final lower = _norm(raw);
 
@@ -504,8 +539,7 @@ class VoiceAssistant {
 
       if ((_session.title == null || _session.title!.isEmpty) &&
           (_session.content == null || _session.content!.isEmpty)) {
-        _askFor(context, slot: 'title',
-          text: 'Vamos a crear la nota. ¿Qué título le pongo? Luego te pediré el contenido.');
+        _askFor(context, slot: 'title', text: 'Vamos a crear la nota. ¿Qué título le pongo? Luego te pediré el contenido.');
         return;
       }
       if (_session.title == null || _session.title!.isEmpty) {
@@ -514,6 +548,8 @@ class VoiceAssistant {
       if (_session.content == null || _session.content!.isEmpty) {
         _askFor(context, slot: 'content', text: '¿Qué contenido escribo?'); return;
       }
+
+      if (_needConfirmNow()) { await _askConfirmCurrent(context); return; }
       await _doCreate(context); return;
     }
 
@@ -550,6 +586,8 @@ class VoiceAssistant {
       if (_session.content == null || _session.content!.isEmpty) {
         _askFor(context, slot: 'content', text: 'Dime el nuevo contenido.'); return;
       }
+
+      if (_needConfirmNow()) { await _askConfirmCurrent(context); return; }
       await _doEdit(context); return;
     }
 
@@ -557,7 +595,7 @@ class VoiceAssistant {
     if (_isSearchIntent(lower)) {
       _session.intent = _Intent.search;
       _session.query = _extractQuery(raw, lower);
-      if (_session.query == null || _session.query!.isEmpty) {
+      if (_session.query == null || _session.query!.trim().isEmpty) {
         _askFor(context, slot: 'query', text: '¿Qué quieres buscar?'); return;
       }
       await _doSearch(context); return;
@@ -608,23 +646,45 @@ class VoiceAssistant {
           return;
         }
         break;
+      case 'confirm':
+        final l = lower;
+        if (_isAffirmative(l)) {
+          if (_session.intent == _Intent.createNote) { await _doCreate(context); return; }
+          if (_session.intent == _Intent.editNote)   { await _doEdit(context);   return; }
+          return;
+        } else if (_isNegative(l)) {
+          final msg = 'Cancelado. Toca “Hablar” para dictarlo de nuevo.';
+          prompt.value = msg;
+          await speak(msg);
+          _session.clear();
+          return;
+        } else {
+          _session.pendingSlot = 'confirm';
+          final msg = '¿Confirmo? Di "sí" o "no".';
+          prompt.value = msg;
+          await speak(msg);
+          _startIdleTimer(context);
+          return;
+        }
     }
 
+    if (_needConfirmNow()) { await _askConfirmCurrent(context); return; }
+
     switch (_session.intent) {
-      case _Intent.openNote: await _doOpen(context); break;
+      case _Intent.openNote:   await _doOpen(context); break;
       case _Intent.createNote:
         if (_session.content == null || _session.content!.isEmpty) {
           _askFor(context, slot: 'content', text: 'Ahora dime el contenido.'); return;
         }
         await _doCreate(context); break;
       case _Intent.deleteNote: await _doDelete(context); break;
-      case _Intent.restoreNote: await _doRestore(context); break;
+      case _Intent.restoreNote:await _doRestore(context); break;
       case _Intent.editNote:
         if (_session.content == null || _session.content!.isEmpty) {
           _askFor(context, slot: 'content', text: 'Dime el nuevo contenido.'); return;
         }
         await _doEdit(context); break;
-      case _Intent.search: await _doSearch(context); break;
+      case _Intent.search:     await _doSearch(context); break;
       case _Intent.none:
         prompt.value = 'Toca “Hablar” y dime qué hacer.';
         await speak('Toca “Hablar” y dime qué hacer.');
