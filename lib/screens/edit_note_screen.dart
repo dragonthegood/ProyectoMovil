@@ -3,14 +3,23 @@ import 'package:file_picker/file_picker.dart';
 import '../data/models/note.dart';
 import '../data/repositories/note_repository.dart';
 
-class NoteDetailScreen extends StatelessWidget {
-  const NoteDetailScreen({super.key});
+class EditNoteScreen extends StatefulWidget {
+  const EditNoteScreen({super.key});
 
-  String _format(DateTime d) {
-    String two(int x) => x.toString().padLeft(2, '0');
-    return "${two(d.day)}/${two(d.month)}/${d.year}";
-  }
+  @override
+  State<EditNoteScreen> createState() => _EditNoteScreenState();
+}
 
+class _EditNoteScreenState extends State<EditNoteScreen> {
+  final _title = TextEditingController();
+  final _content = TextEditingController();
+  final _repo = NoteRepository();
+
+  Note? _original;
+  bool _saved = false;
+  static const int _maxSize = 100 * 1024 * 1024;
+
+  // ---- Helpers MIME
   String _guessImageMime(String? ext) {
     switch ((ext ?? '').toLowerCase()) {
       case 'jpg':
@@ -65,84 +74,106 @@ class NoteDetailScreen extends StatelessWidget {
   }
 
   @override
+  void dispose() {
+    if (!_saved && _original != null) {
+      final t = _title.text.trim();
+      final c = _content.text.trim();
+      if (t != _original!.title || c != _original!.content) {
+        _repo.update(_original!.copyWith(title: t, content: c));
+      }
+    }
+    _title.dispose();
+    _content.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_original == null) return;
+    final t = _title.text.trim();
+    final c = _content.text.trim();
+    await _repo.update(_original!.copyWith(title: t, content: c));
+    _saved = true;
+    if (!mounted) return;
+    Navigator.pop(context, true);
+  }
+
+  Future<void> _pickImage() async {
+    final res = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+      allowMultiple: false,
+      withData: true,
+    );
+    if (res == null) return;
+    final f = res.files.first;
+    if (f.size > _maxSize) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('La imagen supera 100 MB')),
+        );
+      }
+      return;
+    }
+    if (f.bytes == null || _original == null) return;
+    await _repo.addImageAttachment(
+      noteId: _original!.id,
+      name: f.name,
+      bytes: f.bytes!,
+      mimeType: _guessImageMime(f.extension),
+      size: f.size,
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Imagen agregada a la nota')),
+      );
+    }
+  }
+
+  Future<void> _pickFile() async {
+    final res = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      allowMultiple: false,
+      withData: true,
+    );
+    if (res == null) return;
+    final f = res.files.first;
+    if (f.size > _maxSize) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('El archivo supera 100 MB')),
+        );
+      }
+      return;
+    }
+    if (f.bytes == null || _original == null) return;
+    await _repo.addFileAttachment(
+      noteId: _original!.id,
+      name: f.name,
+      bytes: f.bytes!,
+      mimeType: _guessFileMime(f.extension),
+      size: f.size,
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Archivo adjuntado a la nota')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final noteId = ModalRoute.of(context)?.settings.arguments as String?;
-    final repo = NoteRepository();
-
     if (noteId == null) {
       return const Scaffold(
         body: Center(child: Text('No se recibió el ID de la nota')),
       );
     }
 
-    Future<void> _pickImage(String id) async {
-      final res = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-        allowMultiple: false,
-        withData: true,
-      );
-      if (res == null) return;
-      final f = res.files.first;
-      if (f.size > 100 * 1024 * 1024) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('La imagen supera 100 MB')),
-          );
-        }
-        return;
-      }
-      if (f.bytes == null) return;
-      await repo.addImageAttachment(
-        noteId: id,
-        name: f.name,
-        bytes: f.bytes!,
-        mimeType: _guessImageMime(f.extension),
-        size: f.size,
-      );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Imagen agregada a la nota')),
-        );
-      }
-    }
-
-    Future<void> _pickFile(String id) async {
-      final res = await FilePicker.platform.pickFiles(
-        type: FileType.any,
-        allowMultiple: false,
-        withData: true,
-      );
-      if (res == null) return;
-      final f = res.files.first;
-      if (f.size > 100 * 1024 * 1024) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('El archivo supera 100 MB')),
-          );
-        }
-        return;
-      }
-      if (f.bytes == null) return;
-      await repo.addFileAttachment(
-        noteId: id,
-        name: f.name,
-        bytes: f.bytes!,
-        mimeType: _guessFileMime(f.extension),
-        size: f.size,
-      );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Archivo adjuntado a la nota')),
-        );
-      }
-    }
-
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       body: SafeArea(
         child: StreamBuilder<Note?>(
-          stream: repo.watchNote(noteId),
+          stream: _repo.watchNote(noteId),
           builder: (context, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -151,16 +182,20 @@ class NoteDetailScreen extends StatelessWidget {
             if (note == null) {
               return const Center(child: Text('Nota no encontrada'));
             }
+            if (_original == null) {
+              _original = note;
+              _title.text = note.title;
+              _content.text = note.content;
+            }
 
+            // === MISMO DISEÑO que "Nueva nota" ===
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Back
                 Padding(
                   padding: const EdgeInsets.only(left: 16, top: 16),
                   child: GestureDetector(
-                    onTap: () =>
-                        Navigator.pushReplacementNamed(context, '/notes'),
+                    onTap: () => Navigator.pop(context),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: const [
@@ -179,92 +214,66 @@ class NoteDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-
-                const SizedBox(height: 24),
-
-                // Título
+                const SizedBox(height: 32),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    note.title.isEmpty ? '(Sin título)' : note.title,
+                  child: TextField(
+                    controller: _title,
+                    decoration: const InputDecoration(
+                      hintText: 'Título',
+                      border: InputBorder.none,
+                    ),
                     style: const TextStyle(
-                      fontSize: 32,
+                      fontSize: 24,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'SFProDisplay',
                       color: Color(0xFF000000),
                     ),
                   ),
                 ),
-
-                const SizedBox(height: 8),
-
-                // Fecha
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    _format(note.updatedAt),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF8C8C8C),
-                      fontFamily: 'SFProDisplay',
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Contenido
+                const SizedBox(height: 12),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: SingleChildScrollView(
-                      child: Text(
-                        note.content,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontFamily: 'SFProDisplay',
-                          color: Color(0xFF404040),
-                          height: 1.5,
-                        ),
+                    child: TextField(
+                      controller: _content,
+                      decoration: const InputDecoration(
+                        hintText: 'Contenido...',
+                        border: InputBorder.none,
+                      ),
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontFamily: 'SFProDisplay',
+                        color: Color(0xFF404040),
+                        height: 1.5,
                       ),
                     ),
                   ),
                 ),
-
-                // Barra inferior (funcional)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 24),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       GestureDetector(
-                        onTap: () => _pickFile(note.id),
+                        onTap: _pickFile,
                         child: const Icon(Icons.attachment,
                             color: Color(0xFFFFCC00), size: 28),
                       ),
                       GestureDetector(
-                        onTap: () => _pickImage(note.id),
+                        onTap: _pickImage,
                         child: const Icon(Icons.image_outlined,
                             color: Color(0xFFFFCC00), size: 28),
                       ),
+                      const Icon(Icons.edit,
+                          color: Color(0xFFFFCC00), size: 28),
                       GestureDetector(
-                        onTap: () async {
-                          final result = await Navigator.pushNamed(
-                            context,
-                            '/edit-note',
-                            arguments: note.id,
-                          );
-                          if (result == true && context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Cambios guardados')),
-                            );
-                          }
-                        },
-                        child: const Icon(Icons.edit,
+                        onTap: _save,
+                        child: const Icon(Icons.save_rounded,
                             color: Color(0xFFFFCC00), size: 28),
                       ),
-                      const Icon(Icons.save_rounded,
-                          color: Color(0xFFFFCC00), size: 28),
                     ],
                   ),
                 ),

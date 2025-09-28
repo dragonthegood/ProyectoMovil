@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../data/models/note.dart';
+import '../data/repositories/note_repository.dart';
+import '../assistant/voice_assistant.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -9,11 +12,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _editMode = false;
-
-  final folders = const <FolderData>[
-    FolderData(icon: Icons.folder_outlined, label: 'Notas', count: 1),
-    FolderData(icon: Icons.delete_outline, label: 'Eliminados', count: 1),
-  ];
+  final _repo = NoteRepository();
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Padding(
                           padding: EdgeInsets.only(top: 36),
                           child: Text(
-                            'Carpetas',
+                            'Inicio',
                             style: TextStyle(
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
@@ -44,11 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _editMode = !_editMode;
-                          });
-                        },
+                        onPressed: () => setState(() => _editMode = !_editMode),
                         child: Text(
                           _editMode ? 'Listo' : '',
                           style: const TextStyle(
@@ -64,24 +59,18 @@ class _HomeScreenState extends State<HomeScreen> {
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                           icon: const Icon(Icons.menu),
-                          color: Color(0xFFFFCC00),
-                          onPressed: () {
-                            setState(() {
-                              _editMode = true;
-                            });
-                          },
+                          color: const Color(0xFFFFCC00),
+                          onPressed: () => setState(() => _editMode = true),
                         ),
                     ],
                   ),
                   const SizedBox(height: 12),
 
-                  // Buscador
+                  // Buscador (mismo look)
                   GestureDetector(
                     onTap: _editMode
                         ? null
-                        : () {
-                            Navigator.pushNamed(context, '/search');
-                          },
+                        : () => Navigator.pushNamed(context, '/search'),
                     child: AbsorbPointer(
                       absorbing: _editMode,
                       child: Opacity(
@@ -112,9 +101,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
 
                   const SizedBox(height: 16),
-                  Text(
-                    folders.length.toString(),
-                    style: const TextStyle(
+
+                  // Número de carpetas (siguen siendo 2)
+                  const Text(
+                    '2',
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       fontFamily: 'SFProDisplay',
@@ -122,25 +113,49 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 12),
 
+                  // Contadores dinámicos
                   Expanded(
-                    child: ListView.separated(
-                      itemCount: folders.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 0),
-                      itemBuilder: (context, index) {
-                        final data = folders[index];
-                        final isTop = index == 0;
-                        final isBottom = index == folders.length - 1;
+                    child: StreamBuilder<List<Note>>(
+                      stream: _repo.watchNotes(includeDeleted: true),
+                      builder: (context, snap) {
+                        final all = snap.data ?? const <Note>[];
+                        final notesCount = all
+                            .where((n) => !n.isDeleted)
+                            .length;
+                        final deletedCount = all
+                            .where((n) => n.isDeleted)
+                            .length;
 
-                        final isLocked = _editMode &&
-                            (data.label == 'Notas' || data.label == 'Eliminados');
-
-                        return FolderTile(
-                          icon: data.icon,
-                          label: data.label,
-                          count: data.count,
-                          isTop: isTop,
-                          isBottom: isBottom,
-                          isDisabled: isLocked,
+                        return ListView(
+                          children: [
+                            FolderTile(
+                              icon: Icons.folder_outlined,
+                              label: 'Notas',
+                              count: notesCount,
+                              isTop: true,
+                              isBottom: false,
+                              isDisabled: _editMode,
+                            ),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: FractionallySizedBox(
+                                widthFactor: 0.78,
+                                child: const Divider(
+                                  height: 1,
+                                  thickness: 1,
+                                  color: Color(0xFFE5E5EA),
+                                ),
+                              ),
+                            ),
+                            FolderTile(
+                              icon: Icons.delete_outline,
+                              label: 'Eliminados',
+                              count: deletedCount,
+                              isTop: false,
+                              isBottom: true,
+                              isDisabled: _editMode,
+                            ),
+                          ],
                         );
                       },
                     ),
@@ -149,29 +164,26 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // Botón crear carpeta
+            // FAB izquierda -> VOZ (reemplaza crear carpeta)
             Positioned(
               bottom: 20,
               left: 20,
               child: FloatingActionButton(
                 elevation: 0,
                 backgroundColor: const Color(0xFFF2F2F7),
-                heroTag: 'folder',
+                heroTag: 'voice',
                 onPressed: () async {
-                  final newLabel =
-                      await Navigator.pushNamed(context, '/new-folder');
-                  if (newLabel != null && context.mounted) {
-                    print("Carpeta creada: $newLabel");
-                  }
+                  await VoiceAssistant.I.openOverlay(context);
                 },
+
                 child: const Icon(
-                  Icons.create_new_folder_outlined,
+                  Icons.mic_none, // ícono representativo de voz
                   color: Color(0xFFFFCC00),
                 ),
               ),
             ),
 
-            // Botón crear nota
+            // FAB derecha -> crear nota (igual que antes)
             Positioned(
               bottom: 20,
               right: 20,
@@ -179,9 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 elevation: 0,
                 backgroundColor: const Color(0xFFF2F2F7),
                 heroTag: 'note',
-                onPressed: () {
-                  Navigator.pushNamed(context, '/new-note');
-                },
+                onPressed: () => Navigator.pushNamed(context, '/new-note'),
                 child: const Icon(
                   Icons.note_add_outlined,
                   color: Color(0xFFFFCC00),
@@ -193,19 +203,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}
-
-/* =======================  MODELO ======================= */
-
-class FolderData {
-  final IconData icon;
-  final String label;
-  final int count;
-  const FolderData({
-    required this.icon,
-    required this.label,
-    required this.count,
-  });
 }
 
 /* =======================  TILE ========================= */

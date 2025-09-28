@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../data/models/note.dart';
+import '../data/repositories/note_repository.dart';
 
 class DeletedScreen extends StatefulWidget {
   const DeletedScreen({super.key});
@@ -9,173 +11,215 @@ class DeletedScreen extends StatefulWidget {
 
 class _DeletedScreenState extends State<DeletedScreen> {
   bool _editMode = false;
+  final _repo = NoteRepository();
+
+  String _format(DateTime d) {
+    String two(int x) => x.toString().padLeft(2, '0');
+    return "${two(d.day)}/${two(d.month)}/${d.year}";
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          alignment: Alignment.centerLeft,
-          color: const Color(0xFFF2F2F7),
-          child: SafeArea(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: Row(
-                    children: const [
-                      Icon(Icons.arrow_back_ios_new_rounded,
-                          color: Color(0xFFFFCC00), size: 20),
-                      SizedBox(width: 4),
-                      Text(
-                        'Carpetas',
-                        style: TextStyle(
-                          fontFamily: 'SFProDisplay',
-                          fontSize: 18,
-                          fontWeight: FontWeight.w400,
-                          color: Color(0xFFFFCC00),
-                        ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header (igual)
+            Container(
+              color: const Color(0xFFF2F2F7),
+              child: SafeArea(
+                bottom: false,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pushNamedAndRemoveUntil(
+                        context,
+                        '/', // ruta de tu pantalla de inicio
+                        (route) => false,
                       ),
-                    ],
-                  ),
-                ),
-                _editMode
-                    ? GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _editMode = false;
-                          });
-                        },
-                        child: const Text(
-                          'Listo',
-                          style: TextStyle(
-                            fontSize: 16,
+                      child: Row(
+                        children: const [
+                          Icon(
+                            Icons.arrow_back_ios_new_rounded,
                             color: Color(0xFFFFCC00),
+                            size: 20,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'Inicio',
+                            style: TextStyle(
+                              fontFamily: 'SFProDisplay',
+                              fontSize: 18,
+                              fontWeight: FontWeight.w400,
+                              color: Color(0xFFFFCC00),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    _editMode
+                        ? GestureDetector(
+                            onTap: () => setState(() => _editMode = false),
+                            child: const Text(
+                              'Listo',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Color(0xFFFFCC00),
+                                fontFamily: 'SFProDisplay',
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          )
+                        : IconButton(
+                            icon: const Icon(
+                              Icons.menu,
+                              color: Color(0xFFFFCC00),
+                            ),
+                            onPressed: () => setState(() => _editMode = true),
+                          ),
+                  ],
+                ),
+              ),
+            ),
+
+            Expanded(
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Eliminados',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
                             fontFamily: 'SFProDisplay',
-                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF000000),
                           ),
                         ),
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.menu,
-                            color: Color(0xFFFFCC00)),
-                        onPressed: () {
-                          setState(() {
-                            _editMode = true;
-                          });
-                        },
-                      ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      body: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Eliminados',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'SFProDisplay',
-                    color: Color(0xFF000000),
-                  ),
-                ),
-                const SizedBox(height: 20),
+                        const SizedBox(height: 20),
 
-                // Barra de búsqueda
-                GestureDetector(
-                  onTap: () {
-                    Navigator.pushNamed(context, '/search');
-                  },
-                  child: Container(
-                    height: 44,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE5E5EA),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      children: const [
-                        Icon(Icons.search, color: Colors.grey),
-                        SizedBox(width: 8),
-                        Text(
-                          'Buscar',
-                          style: TextStyle(
-                            fontFamily: 'SFProDisplay',
-                            fontSize: 16,
-                            color: Colors.grey,
+                        // Aviso de 30 días (altura corregida, mismo look)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12, // <- en vez de height fijo
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              SizedBox(width: 12),
+                              Icon(
+                                Icons.delete_outline,
+                                color: Color(0xFFFF3B30),
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Las notas estarán disponibles aquí por 30 días.\n'
+                                  'Después, se eliminarán de forma permanente.',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF8C8C8C),
+                                    fontFamily: 'SFProDisplay',
+                                    height: 1.35, // <- line-height correcto
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // Lista de eliminadas (igual, ahora ordenada por fecha desc)
+                        Expanded(
+                          child: StreamBuilder<List<Note>>(
+                            stream: _repo.watchNotes(includeDeleted: true),
+                            builder: (context, snap) {
+                              if (snap.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              }
+                              final all = snap.data ?? const <Note>[];
+                              final deleted =
+                                  all.where((n) => n.isDeleted).toList()..sort(
+                                    (a, b) =>
+                                        b.updatedAt.compareTo(a.updatedAt),
+                                  );
+
+                              if (deleted.isEmpty) {
+                                return const Center(
+                                  child: Text(
+                                    'No hay notas eliminadas.',
+                                    style: TextStyle(
+                                      fontFamily: 'SFProDisplay',
+                                      color: Color(0xFF8C8C8C),
+                                    ),
+                                  ),
+                                );
+                              }
+                              return ListView.separated(
+                                itemCount: deleted.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (ctx, i) {
+                                  final n = deleted[i];
+                                  return DeletedNoteItem(
+                                    title: n.title.isEmpty
+                                        ? '(Sin título)'
+                                        : n.title,
+                                    date: _format(n.updatedAt),
+                                    number: (n.content.trim().isEmpty)
+                                        ? ''
+                                        : (n.content.length > 20
+                                              ? "${n.content.substring(0, 20)}..."
+                                              : n.content),
+                                    editMode: _editMode,
+                                    onTap: () {
+                                      if (!_editMode) {
+                                        Navigator.pushNamed(
+                                          context,
+                                          '/deleted-detail', // <- muestra contenido
+                                          arguments: n.id,
+                                        );
+                                      }
+                                    },
+                                    onRestore: () => _repo.restore(n.id),
+                                    onHardDelete: () => _repo.hardDelete(n.id),
+                                  );
+                                },
+                              );
+                            },
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 20),
-                const Text(
-                  'Las notas estarán disponibles aquí por 30 días.\nDespués, se eliminarán de forma permanente.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF8C8C8C),
-                    fontFamily: 'SFProDisplay',
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Ítem de nota eliminada
-                DeletedNoteItem(
-                  title: 'Contacto administracion',
-                  date: '22/08/2025',
-                  number: '3222222',
-                  editMode: _editMode,
-                  onTap: () {
-                    if (!_editMode) {
-                      Navigator.pushNamed(context, '/deleted-detail');
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          // Texto "1 notas"
-          Positioned(
-            bottom: 80,
-            left: 0,
-            right: 0,
-            child: const Center(
-              child: Text(
-                '1 notas',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF8C8C8C),
-                  fontFamily: 'SFProDisplay',
-                ),
+                ],
               ),
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        elevation: 0,
-        backgroundColor: const Color(0xFFF2F2F7),
-        onPressed: () {
-          Navigator.pushNamed(context, '/new-note');
-        },
-        child: const Icon(Icons.note_add_outlined, color: Color(0xFFFFCC00)),
+          ],
+        ),
       ),
     );
   }
@@ -187,6 +231,8 @@ class DeletedNoteItem extends StatelessWidget {
   final String number;
   final bool editMode;
   final VoidCallback? onTap;
+  final VoidCallback? onRestore;
+  final VoidCallback? onHardDelete;
 
   const DeletedNoteItem({
     super.key,
@@ -195,6 +241,8 @@ class DeletedNoteItem extends StatelessWidget {
     required this.number,
     required this.editMode,
     this.onTap,
+    this.onRestore,
+    this.onHardDelete,
   });
 
   @override
@@ -202,10 +250,16 @@ class DeletedNoteItem extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -213,7 +267,9 @@ class DeletedNoteItem extends StatelessWidget {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 12),
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -239,47 +295,27 @@ class DeletedNoteItem extends StatelessWidget {
                 ),
               ),
             ),
-
-            // Íconos de acción
             if (editMode)
-              Container(
-                height: 64,
-                width: 100,
-                decoration: const BoxDecoration(
-                  borderRadius: BorderRadius.only(
-                    topRight: Radius.circular(12),
-                    bottomRight: Radius.circular(12),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.restore,
+                      color: Colors.black54,
+                      size: 20,
+                    ),
+                    onPressed: onRestore,
                   ),
-                ),
-                child: Row(
-                  children: [
-                    // Restaurar
-                    Expanded(
-                      child: IconButton(
-                        icon: const Icon(Icons.restore,
-                            color: Color(0xFF8C8C8C), size: 20),
-                        onPressed: () {
-                          // Acción de restaurar
-                        },
-                      ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.delete_forever,
+                      color: Color(0xFFFF3B30),
+                      size: 20,
                     ),
-                    Container(
-                      width: 1,
-                      height: double.infinity,
-                      color: const Color(0xFFE5E5EA),
-                    ),
-                    // Eliminar
-                    Expanded(
-                      child: IconButton(
-                        icon: const Icon(Icons.delete,
-                            color: Color(0xFFFF3B30), size: 20),
-                        onPressed: () {
-                          // Acción de eliminar
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+                    onPressed: onHardDelete,
+                  ),
+                ],
               ),
           ],
         ),

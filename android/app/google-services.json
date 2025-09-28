@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "815269820749",
+    "project_id": "bloc-efc3a",
+    "storage_bucket": "bloc-efc3a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:815269820749:android:2f0cf92577a38081a09f04",
+        "android_client_info": {
+          "package_name": "com.example.proyectomovil"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBTJ76gtxXvMeGFS1G6b_qWgusjUyHGX9A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
