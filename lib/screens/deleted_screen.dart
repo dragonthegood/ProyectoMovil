@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/models/note.dart';
 import '../data/repositories/note_repository.dart';
+import '../assistant/voice_assistant.dart';
 
 class DeletedScreen extends StatefulWidget {
   const DeletedScreen({super.key});
@@ -213,6 +214,24 @@ class _DeletedScreenState extends State<DeletedScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  // FAB izquierda -> VOZ (reemplaza crear carpeta)
+                  Positioned(
+                    bottom: 20,
+                    left: 20,
+                    child: FloatingActionButton(
+                      elevation: 0,
+                      backgroundColor: const Color(0xFFF2F2F7),
+                      heroTag: 'voice',
+                      onPressed: () async {
+                        await VoiceAssistant.I.openOverlay(context);
+                      },
+
+                      child: const Icon(
+                        Icons.mic_none, // ícono representativo de voz
+                        color: Color(0xFFFFCC00),
+                      ),
                     ),
                   ),
                 ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/models/note.dart';
 import '../data/repositories/note_repository.dart';
+import '../assistant/voice_assistant.dart';
 
 class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});
@@ -24,9 +25,9 @@ class _NotesScreenState extends State<NotesScreen> {
     if (!_routeSnackShown && args != null && args['showSaved'] == true) {
       _routeSnackShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nota guardada')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Nota guardada')));
       });
     }
   }
@@ -50,17 +51,23 @@ class _NotesScreenState extends State<NotesScreen> {
               child: SafeArea(
                 bottom: false,
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       GestureDetector(
-                        onTap: () => Navigator.pushReplacementNamed(context, '/'),
+                        onTap: () =>
+                            Navigator.pushReplacementNamed(context, '/'),
                         child: Row(
                           children: const [
-                            Icon(Icons.arrow_back_ios_new_rounded,
-                                color: Color(0xFFFFCC00), size: 20),
+                            Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: Color(0xFFFFCC00),
+                              size: 20,
+                            ),
                             SizedBox(width: 4),
                             Text(
                               'Inicio',
@@ -88,7 +95,10 @@ class _NotesScreenState extends State<NotesScreen> {
                               ),
                             )
                           : IconButton(
-                              icon: const Icon(Icons.menu, color: Color(0xFFFFCC00)),
+                              icon: const Icon(
+                                Icons.menu,
+                                color: Color(0xFFFFCC00),
+                              ),
                               onPressed: () => setState(() => _editMode = true),
                             ),
                     ],
@@ -172,21 +182,21 @@ class _NotesScreenState extends State<NotesScreen> {
                               if (snap.connectionState ==
                                   ConnectionState.waiting) {
                                 return const Center(
-                                    child: CircularProgressIndicator());
+                                  child: CircularProgressIndicator(),
+                                );
                               }
 
                               final all = snap.data ?? const <Note>[];
-                              final notes = all
-                                  .where((n) => !n.isDeleted)
-                                  .toList()
-                                ..sort((a, b) {
-                                  if (a.pinned != b.pinned) {
-                                    // true antes que false
-                                    return a.pinned ? -1 : 1;
-                                  }
-                                  // dentro del grupo, más recientes primero
-                                  return b.updatedAt.compareTo(a.updatedAt);
-                                });
+                              final notes =
+                                  all.where((n) => !n.isDeleted).toList()
+                                    ..sort((a, b) {
+                                      if (a.pinned != b.pinned) {
+                                        // true antes que false
+                                        return a.pinned ? -1 : 1;
+                                      }
+                                      // dentro del grupo, más recientes primero
+                                      return b.updatedAt.compareTo(a.updatedAt);
+                                    });
 
                               if (notes.isEmpty) {
                                 return const Center(
@@ -219,14 +229,17 @@ class _NotesScreenState extends State<NotesScreen> {
                                     preview: short,
                                     editMode: _editMode,
                                     pinned: n.pinned, // <--- NUEVO
-                                    onPin: () =>
-                                        _repo.update(n.copyWith(pinned: !n.pinned)),
+                                    onPin: () => _repo.update(
+                                      n.copyWith(pinned: !n.pinned),
+                                    ),
                                     onDelete: () => _repo.softDelete(n.id),
                                     onTap: () {
                                       if (!_editMode) {
                                         Navigator.pushNamed(
-                                            context, '/note-detail',
-                                            arguments: n.id);
+                                          context,
+                                          '/note-detail',
+                                          arguments: n.id,
+                                        );
                                       }
                                     },
                                   );
@@ -236,6 +249,24 @@ class _NotesScreenState extends State<NotesScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  // FAB izquierda -> VOZ (reemplaza crear carpeta)
+                  Positioned(
+                    bottom: 20,
+                    left: 20,
+                    child: FloatingActionButton(
+                      elevation: 0,
+                      backgroundColor: const Color(0xFFF2F2F7),
+                      heroTag: 'voice',
+                      onPressed: () async {
+                        await VoiceAssistant.I.openOverlay(context);
+                      },
+
+                      child: const Icon(
+                        Icons.mic_none, // ícono representativo de voz
+                        color: Color(0xFFFFCC00),
+                      ),
                     ),
                   ),
                   // Contador inferior (mismo diseño), ahora filtrado
@@ -327,8 +358,10 @@ class NoteCard extends StatelessWidget {
           children: [
             Expanded(
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -368,8 +401,11 @@ class NoteCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   IconButton(
-                    icon: const Icon(Icons.delete,
-                        color: Color(0xFFFF3B30), size: 20),
+                    icon: const Icon(
+                      Icons.delete,
+                      color: Color(0xFFFF3B30),
+                      size: 20,
+                    ),
                     onPressed: onDelete,
                   ),
                 ],
