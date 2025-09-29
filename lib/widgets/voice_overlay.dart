@@ -19,7 +19,6 @@ class _VoiceOverlayState extends State<VoiceOverlay>
   void initState() {
     super.initState();
 
-    // Controller en el rango normal [0, 1]
     _pulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -30,7 +29,6 @@ class _VoiceOverlayState extends State<VoiceOverlay>
       end: 1.08,
     ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
 
-    // notificar que el overlay ya es visible (por si el asistente quiere hablar)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.assistant.overlayBecameVisible(context);
     });
@@ -46,134 +44,157 @@ class _VoiceOverlayState extends State<VoiceOverlay>
   @override
   Widget build(BuildContext context) {
     final a = widget.assistant;
+    final size = MediaQuery.of(context).size;
+    final maxH = (size.height * 0.8).clamp(0.0, 640.0); // altura máx. segura
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(24),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 600),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // barra superior
-                Row(
-                  children: [
-                    const Icon(Icons.assistant, color: Color(0xFFFFCC00)),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Asistente',
-                      style: TextStyle(
-                        fontFamily: 'SFProDisplay',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      tooltip: 'Cerrar',
-                      onPressed: () => a.onTapClose(context),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-
-                // Mensaje / prompt del asistente
-                ValueListenableBuilder<String>(
-                  valueListenable: a.prompt,
-                  builder: (_, value, __) => Text(
-                    value,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontFamily: 'SFProDisplay',
-                      color: Color(0xFF606060),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // "onda" simple (círculos) con animación segura
-                ScaleTransition(
-                  scale: _anim,
-                  child: Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFFFFCC00).withOpacity(0.12),
-                    ),
-                    child: const Icon(
-                      Icons.mic,
-                      color: Color(0xFFFFCC00),
-                      size: 36,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Transcripción en vivo
-                ValueListenableBuilder<String>(
-                  valueListenable: a.liveText,
-                  builder: (_, text, __) => AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
-                    opacity: text.isEmpty ? 0.0 : 1.0,
-                    child: Text(
-                      text,
-                      textAlign: TextAlign.center,
-                      maxLines: 6,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: 'SFProDisplay',
-                        color: Color(0xFF404040),
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Botón principal: Hablar / Detener
-                ValueListenableBuilder<bool>(
-                  valueListenable: a.isListening,
-                  builder: (_, listening, __) {
-                    return SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFCC00),
-                          foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 12,
-                          ),
-                        ),
-                        onPressed: () async {
-                          if (listening) {
-                            await a.onTapStop();
-                          } else {
-                            await a.onTapSpeak(context); // corta TTS y escucha
-                          }
-                        },
-                        icon: Icon(listening ? Icons.stop : Icons.mic),
-                        label: Text(
-                          listening ? 'Detener' : 'Hablar',
-                          style: const TextStyle(fontFamily: 'SFProDisplay'),
+    return SafeArea(
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(24),
+        child: Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 520,
+              maxHeight: maxH,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // barra superior
+                  Row(
+                    children: [
+                      const Icon(Icons.assistant, color: Color(0xFFFFCC00)),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Asistente',
+                        style: TextStyle(
+                          fontFamily: 'SFProDisplay',
+                          fontWeight: FontWeight.w600,
+                          fontSize: 18,
                         ),
                       ),
-                    );
-                  },
-                ),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: 'Cerrar',
+                        onPressed: () => a.onTapClose(context),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
 
-                const SizedBox(height: 6),
-              ],
+                  const SizedBox(height: 8),
+
+                  // ----- CONTENIDO SCROLLEABLE -----
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Mensaje / prompt del asistente
+                          ValueListenableBuilder<String>(
+                            valueListenable: a.prompt,
+                            builder: (_, value, __) => SelectableText(
+                              value,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: 'SFProDisplay',
+                                color: Color(0xFF606060),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // "onda" simple (círculos) con animación segura
+                          Center(
+                            child: ScaleTransition(
+                              scale: _anim,
+                              child: Container(
+                                width: 120,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFFFFCC00).withOpacity(0.12),
+                                ),
+                                child: const Icon(
+                                  Icons.mic,
+                                  color: Color(0xFFFFCC00),
+                                  size: 36,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // Transcripción en vivo
+                          ValueListenableBuilder<String>(
+                            valueListenable: a.liveText,
+                            builder: (_, text, __) => AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity: text.isEmpty ? 0.0 : 1.0,
+                              child: SelectableText(
+                                text,
+                                textAlign: TextAlign.center,
+                                // sin maxLines para permitir scroll natural
+                                style: const TextStyle(
+                                  fontFamily: 'SFProDisplay',
+                                  color: Color(0xFF404040),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // ----- FIN CONTENIDO SCROLLEABLE -----
+
+                  const SizedBox(height: 16),
+
+                  // Botón principal: Hablar / Detener
+                  ValueListenableBuilder<bool>(
+                    valueListenable: a.isListening,
+                    builder: (_, listening, __) {
+                      return SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFCC00),
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 12,
+                            ),
+                          ),
+                          onPressed: () async {
+                            if (listening) {
+                              await a.onTapStop();
+                            } else {
+                              await a.onTapSpeak(context);
+                            }
+                          },
+                          icon: Icon(listening ? Icons.stop : Icons.mic),
+                          label: Text(
+                            listening ? 'Detener' : 'Hablar',
+                            style: const TextStyle(fontFamily: 'SFProDisplay'),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 6),
+                ],
+              ),
             ),
           ),
         ),

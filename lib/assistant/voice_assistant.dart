@@ -15,35 +15,60 @@ enum _Intent {
   restoreNote,
   editNote,
   search,
-  // --- NUEVOS (carpetas) ---
+
+  // Carpetas
   createFolder,
   openFolder,
   renameFolder,
+  deleteFolder,
+
+  // Notas dentro/entre carpetas
   createNoteInFolder,
   moveNoteToFolder,
-  // --- NUEVOS (mejoras) ---
-  deleteFolder,
-  genericDelete, // “eliminar/borrar” sin especificar si es nota o carpeta
+  moveNoteToRoot,
+
+  // Listados / navegación
+  listFolders,
+  listNotes,
+  listNotesInFolder,
+  openDeleted,
+
+  // Papelera (acciones delegadas a UI)
+  emptyTrash,
+  restoreAllTrash,
+
+  // Varios
+  readNoteAloud,
+  stopReading,
+  toggleConfirmOn,
+  toggleConfirmOff,
+  help,
+
+  // Desambiguación
+  genericDelete,
 }
 
 /// Estado de la conversación (slots)
 class _Session {
   _Intent intent = _Intent.none;
+
+  // slots comunes
   String? title;
   String? content;
   String? query;
 
-  // --- NUEVOS slots carpeta/nota ---
-  String? folder; // carpeta objetivo
-  String? newFolder; // nuevo nombre de carpeta (rename)
-  String? noteTitle; // para mover nota a carpeta
+  // slots carpeta/nota
+  String? folder;     // carpeta objetivo
+  String? newFolder;  // nuevo nombre de carpeta
+  String? noteTitle;  // para mover nota
 
-  // --- NUEVOS slots de control ---
-  String? targetType; // 'nota' | 'carpeta' | 'archivo'
-  bool askedFolderForCreate = false; // para no preguntar 2 veces
+  // control
+  String? targetType; // 'nota' | 'carpeta'
+  bool askedFolderForCreate = false;
 
-  String?
-  pendingSlot; // 'title','content','query','confirm','folder','newFolder','noteTitle','targetType','folderOptional'
+  /// 'title','content','query','confirm',
+  /// 'folder','newFolder','noteTitle','targetType','folderOptional'
+  String? pendingSlot;
 
   void clear() {
     intent = _Intent.none;
@@ -66,13 +91,12 @@ class VoiceAssistant {
   final stt.SpeechToText _stt = stt.SpeechToText();
   final FlutterTts _tts = FlutterTts();
   final _repo = NoteRepository();
-  final _folderRepo = FolderRepository(); // <-- NUEVO
+  final _folderRepo = FolderRepository();
 
   bool _available = false;
 
   // ===== Config =====
-  bool _confirmCreateEdit =
-      true; // activar/desactivar confirmación crear/editar
+  bool _confirmCreateEdit = true; // confirmación para crear/editar
 
   // ===== Estado expuesto al overlay =====
   final ValueNotifier<bool> isListening = ValueNotifier(false);
@@ -81,12 +105,12 @@ class VoiceAssistant {
     'Toca “Hablar” y dime qué hacer. Ej.: "crear nota...", "abrir nota...", "buscar..."',
   );
 
-  // Sesión de diálogo
+  // Sesión
   final _Session _session = _Session();
 
   // Timers
-  Timer? _autoCloseTimer; // cuando estamos escuchando
-  Timer? _idleTimer; // cuando el overlay está abierto sin escuchar
+  Timer? _autoCloseTimer;
+  Timer? _idleTimer;
 
   // ========= Inicialización =========
   Future<void> init() async {
@@ -95,7 +119,7 @@ class VoiceAssistant {
 
     await _tts.setLanguage('es-ES');
     await _tts.setSpeechRate(0.71);
-    await _tts.awaitSpeakCompletion(true); // esperar a que termine de hablar
+    await _tts.awaitSpeakCompletion(true);
   }
 
   // ========= Hablar / Callar =========
@@ -118,13 +142,15 @@ class VoiceAssistant {
     _session.clear();
     prompt.value =
         'Hola 👋 Soy tu asistente. Toca “Hablar” y dime qué hacer.\n'
-        'Ej.: "crear nota compras que diga pan", "abrir nota compras", "buscar recetas", '
-        '"eliminar nota compras", "restaurar nota compras".\n'
+        'Notas: "crear nota compras que diga pan", "abrir nota compras", "editar nota compras", '
+        '"eliminar nota compras", "restaurar nota compras", "buscar recetas".\n'
         'Carpetas: "crear carpeta trabajo", "abrir carpeta clientes", '
-        '"renombra la carpeta trabajo a clientes", '
-        '"crear nota lista en la carpeta mercado que diga leche", '
-        '"mover la nota compras a la carpeta mercado", '
-        '"eliminar carpeta trabajo".';
+        '"renombra la carpeta trabajo a clientes", "eliminar carpeta trabajo".\n'
+        'Dentro/entre carpetas: "crear nota lista en la carpeta mercado que diga leche", '
+        '"mover la nota compras a la carpeta mercado", "mover la nota compras a ninguna carpeta".\n'
+        'Listados/navegación: "listar carpetas", "listar notas", "listar notas de la carpeta mercado", '
+        '"ver eliminados". Papelera (UI): "vaciar eliminados", "restaurar todo".\n'
+        'Voz: "leer la nota compras", "detener lectura". Preferencias: "activar confirmaciones", "desactivar confirmaciones".';
 
     _startIdleTimer(context);
 
@@ -337,22 +363,21 @@ class VoiceAssistant {
     ], _titleStops);
   }
 
-  // ======== Detectores de intención (flexibles) ========
+  // ======== Detectores de intención ========
   bool _mentionsNote(String s) =>
       s.contains('nota') || s.contains('archivo') || s.contains('apunte');
 
   bool _isOpenNoteIntent(String s) {
     return _hasAny(s, [
-          'abrir',
-          'abre',
-          'abreme',
-          'mostrar',
-          'muestrame',
-          'quiero ver',
-          'ver',
-          'ensename',
-        ]) &&
-        _mentionsNote(s);
+      'abrir',
+      'abre',
+      'abreme',
+      'mostrar',
+      'muestrame',
+      'quiero ver',
+      'ver',
+      'ensename',
+    ]) && _mentionsNote(s);
   }
 
   bool _isCreateNoteIntent(String s) {
@@ -372,17 +397,7 @@ class VoiceAssistant {
 
   bool _isDeleteNoteIntent(String s) {
     final verbs = [
-      'eliminar',
-      'elimina',
-      'elimine',
-      'borrar',
-      'borra',
-      'borre',
-      'quitar',
-      'quita',
-      'quite',
-      'remover',
-      'remueve',
+      'eliminar','elimina','elimine','borrar','borra','borre','quitar','quita','quite','remover','remueve'
     ];
     final movePhrases = [
       'enviar a eliminados',
@@ -393,86 +408,37 @@ class VoiceAssistant {
       'mover a la papelera',
       'tirar a la papelera',
     ];
-    return (_hasAnyWord(s, verbs) && _mentionsNote(s)) ||
-        _hasAny(s, movePhrases);
+    return (_hasAnyWord(s, verbs) && _mentionsNote(s)) || _hasAny(s, movePhrases);
   }
 
   bool _isGenericDeleteIntent(String s) {
-    final verbs = [
-      'eliminar',
-      'elimina',
-      'elimine',
-      'borrar',
-      'borra',
-      'borre',
-      'quitar',
-      'quita',
-      'quite',
-      'remover',
-      'remueve',
-      'tirar',
-    ];
+    final verbs = ['eliminar','elimina','elimine','borrar','borra','borre','quitar','quita','quite','remover','remueve','tirar'];
     if (!_hasAnyWord(s, verbs)) return false;
-    final mentionsAny =
-        _mentionsNote(s) || s.contains('carpeta') || s.contains('folder');
-    return !mentionsAny; // dijo “elimina esto” sin decir qué
+    final mentionsAny = _mentionsNote(s) || s.contains('carpeta') || s.contains('folder');
+    return !mentionsAny; // dijo “elimina…” sin objeto claro
   }
 
   bool _isRestoreNoteIntent(String s) {
-    final verbs = [
-      'restaurar',
-      'restaura',
-      'recuperar',
-      'recupera',
-      'devolver',
-      'devuelve',
-      'reponer',
-      'repone',
-    ];
+    final verbs = ['restaurar','restaura','recuperar','recupera','devolver','devuelve','reponer','repone'];
     final phrases = ['sacar de eliminados', 'saca de eliminados'];
     return (_hasAnyWord(s, verbs) && _mentionsNote(s)) || _hasAny(s, phrases);
   }
 
   bool _isEditNoteIntent(String s) {
-    return _hasAnyWord(s, [
-          'editar',
-          'edita',
-          'actualizar',
-          'actualiza',
-          'modificar',
-          'modifica',
-          'cambiar',
-          'cambia',
-        ]) &&
-        _mentionsNote(s);
+    return _hasAnyWord(s, ['editar','edita','actualizar','actualiza','modificar','modifica','cambiar','cambia']) && _mentionsNote(s);
   }
 
   bool _isSearchIntent(String s) {
-    return _hasAnyWord(s, [
-      'buscar',
-      'busca',
-      'encuentra',
-      'encontrar',
-      'filtrar',
-      'filtra',
-      'listar',
-      'lista',
-    ]);
+    return _hasAnyWord(s, ['buscar','busca','encuentra','encontrar','filtrar','filtra','listar','lista']);
   }
 
-  // --- Carpetas ---
+  // Carpetas
   bool _isCreateFolderIntent(String s) {
-    return (_hasAnyWord(s, ['crear', 'crea', 'nueva', 'agregar', 'agrega']) &&
-        s.contains('carpeta'));
+    return (_hasAnyWord(s, ['crear','crea','nueva','agregar','agrega']) && s.contains('carpeta'));
   }
 
   bool _isOpenFolderIntent(String s) {
-    return _hasAny(s, [
-      'abrir carpeta',
-      'abre carpeta',
-      'mostrar carpeta',
-      'ver carpeta',
-    ]);
+    return _hasAny(s, ['abrir carpeta','abre carpeta','mostrar carpeta','ver carpeta']);
   }
 
   bool _isRenameFolderIntent(String s) {
@@ -486,39 +452,62 @@ class VoiceAssistant {
     ]);
   }
 
+  bool _isDeleteFolderIntent(String s) {
+    final verbs = ['eliminar','elimina','borrar','borra','quitar','quita','remover','remueve','tirar'];
+    return _hasAnyWord(s, verbs) && s.contains('carpeta');
+  }
+
   bool _isCreateNoteInFolderIntent(String s) {
-    return _isCreateNoteIntent(s) &&
-        _hasAny(s, [
-          'en la carpeta',
-          'dentro de la carpeta',
-          'en carpeta',
-          'dentro de carpeta',
-        ]);
+    return _isCreateNoteIntent(s) && _hasAny(s, [
+      'en la carpeta','dentro de la carpeta','en carpeta','dentro de carpeta'
+    ]);
   }
 
   bool _isMoveNoteToFolderIntent(String s) {
-    return _hasAny(s, [
-          'mover la nota',
-          'mueve la nota',
-          'llevar la nota',
-          'lleva la nota',
-        ]) &&
-        _hasAny(s, ['a la carpeta', 'a carpeta']);
+    return _hasAny(s, ['mover la nota','mueve la nota','llevar la nota','lleva la nota']) &&
+           _hasAny(s, ['a la carpeta','a carpeta']);
   }
 
-  bool _isDeleteFolderIntent(String s) {
-    final verbs = [
-      'eliminar',
-      'elimina',
-      'borrar',
-      'borra',
-      'quitar',
-      'quita',
-      'remover',
-      'remueve',
-      'tirar',
-    ];
-    return _hasAnyWord(s, verbs) && s.contains('carpeta');
+  bool _isMoveNoteToRootIntent(String s) {
+    return _hasAny(s, ['mover la nota','mueve la nota','llevar la nota','lleva la nota']) &&
+           _hasAny(s, ['a ninguna carpeta','a la raiz','a raíz','a principal']);
+  }
+
+  // Listados / navegación
+  bool _isListFoldersIntent(String s) {
+    return _hasAny(s, ['listar carpetas','lista carpetas','ver carpetas','mostrar carpetas']);
+  }
+  bool _isListNotesIntent(String s) {
+    return _hasAny(s, ['listar notas','lista notas','ver notas','mostrar notas']) && !s.contains('carpeta');
+  }
+  bool _isListNotesInFolderIntent(String s) {
+    return _hasAny(s, ['listar notas de la carpeta','lista notas de la carpeta','notas de la carpeta']);
+  }
+  bool _isOpenDeletedIntent(String s) {
+    return _hasAny(s, ['ver eliminados','mostrar eliminados','abrir eliminados','papelera']);
+  }
+  bool _isEmptyTrashIntent(String s) {
+    return _hasAny(s, ['vaciar eliminados','vaciar papelera','vaciar la papelera']);
+  }
+  bool _isRestoreAllTrashIntent(String s) {
+    return _hasAny(s, ['restaurar todo','restaurar todo de eliminados','restaurar todas las notas']);
+  }
+
+  // Voz y settings
+  bool _isReadNoteIntent(String s) {
+    return _hasAny(s, ['leer la nota','lee la nota','leer nota','lee nota']);
+  }
+  bool _isStopReadingIntent(String s) {
+    return _hasAny(s, ['detener lectura','para la lectura','deten lectura','calla','silencio','deja de leer','stop']);
+  }
+  bool _isToggleConfirmOnIntent(String s) {
+    return _hasAny(s, ['activar confirmaciones','activa confirmaciones','pide confirmacion','pide confirmación']);
+  }
+  bool _isToggleConfirmOffIntent(String s) {
+    return _hasAny(s, ['desactivar confirmaciones','desactiva confirmaciones','no pidas confirmacion','no pidas confirmación']);
+  }
+  bool _isHelpIntent(String s) {
+    return _hasAny(s, ['ayuda','que puedo decir','como funciona','comandos']);
   }
 
   // ======== Extractores de slots ========
@@ -530,20 +519,10 @@ class VoiceAssistant {
     if (quoted != null) return _stripTitle(quoted);
 
     final keys = [
-      'abrir la nota',
-      'abrir nota',
-      'abre la nota',
-      'abre nota',
-      'quiero ver la nota',
-      'ver la nota',
-      'ver nota',
-      'mostrar la nota',
-      'muestrame la nota',
-      'mostrar nota',
-      'ensename la nota',
-      'nota',
-      'archivo',
-      'apunte',
+      'abrir la nota','abrir nota','abre la nota','abre nota',
+      'quiero ver la nota','ver la nota','ver nota','mostrar la nota',
+      'muestrame la nota','mostrar nota','ensename la nota',
+      'nota','archivo','apunte',
     ];
     final found = _afterMany(lowerNorm, keys);
     return found == null ? null : _stripTitle(found);
@@ -569,25 +548,13 @@ class VoiceAssistant {
     String? title = _extractTitleByNamePatterns(lower);
     title ??= _firstQuoted(raw);
     title ??= _afterMany(lower, [
-      'crear la nota',
-      'crear nota',
-      'crea la nota',
-      'crea nota',
-      'nueva nota',
-      'agregar nota',
-      'agrega nota',
-      'crear el archivo',
-      'crear archivo',
-      'crea el archivo',
-      'crea archivo',
-      'nueva archivo',
-      'agregar archivo',
-      'agrega archivo',
-      'nota',
-      'archivo',
-      'apunte',
+      'crear la nota','crear nota','crea la nota','crea nota',
+      'nueva nota','agregar nota','agrega nota',
+      'crear el archivo','crear archivo','crea el archivo','crea archivo',
+      'nueva archivo','agregar archivo','agrega archivo',
+      'nota','archivo','apunte',
     ]);
-    title ??= _afterMany(lower, ['anota', 'apunta', 'toma nota']);
+    title ??= _afterMany(lower, ['anota','apunta','toma nota']);
 
     final contentQuoted = RegExp(
       r'''(contenido|texto|que\s+diga|dice)\s+["'](.+?)["']''',
@@ -596,7 +563,7 @@ class VoiceAssistant {
     ).firstMatch(raw)?.group(2);
     String? content =
         contentQuoted ??
-        _afterMany(lower, ['con contenido', 'con texto', 'que diga', 'dice']);
+        _afterMany(lower, ['con contenido','con texto','que diga','dice']);
 
     if (title != null) title = _stripTitle(title);
     if (content != null) content = _stripContent(content);
@@ -612,32 +579,14 @@ class VoiceAssistant {
     if (quoted != null) return _stripTitle(quoted);
 
     final keys = [
-      'elimina la nota',
-      'eliminar la nota',
-      'eliminar nota',
-      'elimina nota',
-      'borra la nota',
-      'borrar la nota',
-      'borra nota',
-      'borrar nota',
-      'quita la nota',
-      'quitar la nota',
-      'quita nota',
-      'quitar nota',
-      'elimina el archivo',
-      'borrar el archivo',
-      'archivo',
-      'apunte',
-      'enviar a eliminados la nota',
-      'mandar a eliminados la nota',
-      'enviar a eliminados',
-      'mandar a eliminados',
-      'enviar a la papelera',
-      'mandar a la papelera',
-      'mover a papelera',
-      'mover a la papelera',
-      'tirar a la papelera',
-      'nota',
+      'elimina la nota','eliminar la nota','eliminar nota','elimina nota',
+      'borra la nota','borrar la nota','borra nota','borrar nota',
+      'quita la nota','quitar la nota','quita nota','quitar nota',
+      'elimina el archivo','borrar el archivo','archivo','apunte',
+      'enviar a eliminados la nota','mandar a eliminados la nota',
+      'enviar a eliminados','mandar a eliminados','enviar a la papelera',
+      'mandar a la papelera','mover a papelera','mover a la papelera',
+      'tirar a la papelera','nota',
     ];
     final found = _afterMany(lower, keys);
     return found == null ? null : _stripTitle(found);
@@ -651,27 +600,12 @@ class VoiceAssistant {
     if (quoted != null) return _stripTitle(quoted);
 
     final keys = [
-      'restaura la nota',
-      'restaurar la nota',
-      'restaurar nota',
-      'restaura nota',
-      'recupera la nota',
-      'recuperar la nota',
-      'recupera nota',
-      'recuperar nota',
-      'sacar de eliminados la nota',
-      'saca de eliminados la nota',
-      'sacar de eliminados',
-      'saca de eliminados',
-      'devuelve la nota',
-      'devolver la nota',
-      'devuelve nota',
-      'devolver nota',
-      'reponer la nota',
-      'reponer nota',
-      'nota',
-      'archivo',
-      'apunte',
+      'restaura la nota','restaurar la nota','restaurar nota','restaura nota',
+      'recupera la nota','recuperar la nota','recupera nota','recuperar nota',
+      'sacar de eliminados la nota','saca de eliminados la nota',
+      'sacar de eliminados','saca de eliminados',
+      'devuelve la nota','devolver la nota','devuelve nota','devolver nota',
+      'reponer la nota','reponer nota','nota','archivo','apunte',
     ];
     final found = _afterMany(lower, keys);
     return found == null ? null : _stripTitle(found);
@@ -697,27 +631,11 @@ class VoiceAssistant {
         _extractTitleByNamePatterns(lower) ??
         _firstQuoted(raw) ??
         _afterMany(lower, [
-          'edita la nota',
-          'editar la nota',
-          'editar nota',
-          'edita nota',
-          'actualiza la nota',
-          'actualizar la nota',
-          'actualizar nota',
-          'actualiza nota',
-          'modifica la nota',
-          'modificar la nota',
-          'modificar nota',
-          'modifica nota',
-          'cambia la nota',
-          'cambiar la nota',
-          'cambiar nota',
-          'cambia nota',
-          'edita el archivo',
-          'editar el archivo',
-          'archivo',
-          'apunte',
-          'nota',
+          'edita la nota','editar la nota','editar nota','edita nota',
+          'actualiza la nota','actualizar la nota','actualizar nota','actualiza nota',
+          'modifica la nota','modificar la nota','modificar nota','modifica nota',
+          'cambia la nota','cambiar la nota','cambiar nota','cambia nota',
+          'edita el archivo','editar el archivo','archivo','apunte','nota',
         ]);
 
     String? content;
@@ -730,15 +648,8 @@ class VoiceAssistant {
     content =
         quoted ??
         _afterMany(lower, [
-          'con contenido',
-          'con texto',
-          'que diga',
-          'dice',
-          'actualizar con',
-          'cambiar a',
-          'modificar a',
-          'pon el',
-          'ponle',
+          'con contenido','con texto','que diga','dice',
+          'actualizar con','cambiar a','modificar a','pon el','ponle',
         ]);
 
     if (title != null) title = _stripTitle(title);
@@ -763,20 +674,9 @@ class VoiceAssistant {
     }
 
     final starters = [
-      'buscar',
-      'busca',
-      'encuentra',
-      'encontrar',
-      'filtrar',
-      'filtra',
-      'listar',
-      'lista',
-      'buscar sobre',
-      'buscar de',
-      'buscar por',
-      'buscar con',
-      'notas que contengan',
-      'notas con',
+      'buscar','busca','encuentra','encontrar','filtrar','filtra',
+      'listar','lista','buscar sobre','buscar de','buscar por','buscar con',
+      'notas que contengan','notas con',
     ];
     for (final k in starters) {
       if (lower.startsWith(k)) {
@@ -788,7 +688,7 @@ class VoiceAssistant {
     return any == null ? null : _stripContent(any);
   }
 
-  // --- Carpetas ---
+  // Carpetas
   String? _extractFolderName(String raw, String lower) {
     final q = _firstQuoted(raw);
     if (q != null) return _stripTitle(q);
@@ -804,6 +704,12 @@ class VoiceAssistant {
       caseSensitive: false,
     ).firstMatch(lower);
     if (m2 != null) return _stripTitle(m2.group(1)!.trim());
+
+    final m3 = RegExp(
+      r'de\s+la\s+carpeta\s+([^\.,;:]+)',
+      caseSensitive: false,
+    ).firstMatch(lower);
+    if (m3 != null) return _stripTitle(m3.group(1)!.trim());
 
     return null;
   }
@@ -834,7 +740,7 @@ class VoiceAssistant {
 
   ({String? note, String? folder}) _extractMoveNote(String raw, String lower) {
     final r = RegExp(
-      r'''(?:mover|mueve|llevar|lleva)\s+la\s+nota\s+(?:"([^"]+)"|'([^']+)'|([^\s]+))\s+a\s+la\s+carpeta\s+(?:"([^"]+)"|'([^']+)'|(.+))''',
+      r'''(?:mover|mueve|llevar|lleva)\s+la\s+nota\s+(?:"([^"]+)"|'([^']+)'|(.+?))\s+a\s+la\s+carpeta\s+(?:"([^"]+)"|'([^']+)'|(.+))$''',
       caseSensitive: false,
       dotAll: true,
     ).firstMatch(raw);
@@ -845,37 +751,18 @@ class VoiceAssistant {
       return (note: _stripTitle(note), folder: _stripTitle(folder));
     }
 
+    // si no vino la nota, al menos intentemos carpeta
     return (note: null, folder: _extractFolderName(raw, lower));
   }
 
   // ======== Confirmación ========
   bool _isAffirmative(String l) => _hasAnyWord(l, [
-    'si',
-    'ok',
-    'okay',
-    'vale',
-    'claro',
-    'correcto',
-    'de acuerdo',
-    'confirmo',
-    'hazlo',
-    'adelante',
-    'dale',
-    'va',
+    'si','ok','okay','vale','claro','correcto','de acuerdo','confirmo','hazlo','adelante','dale','va',
   ]);
 
   bool _isNegative(String l) =>
-      _hasAnyWord(l, [
-        'no',
-        'cancelar',
-        'cancela',
-        'cancelalo',
-        'detener',
-        'deten',
-        'para',
-        'parar',
-      ]) ||
-      _hasAny(l, ['mejor no', 'no gracias']);
+      _hasAnyWord(l, ['no','cancelar','cancela','cancelalo','detener','deten','para','parar']) ||
+      _hasAny(l, ['mejor no','no gracias']);
 
   bool _needConfirmNow() {
     if (!_confirmCreateEdit) return false;
@@ -945,41 +832,60 @@ class VoiceAssistant {
   Future<void> _handle(BuildContext context, String raw) async {
     final lower = _norm(raw);
 
+    // Slots pendientes
     if (_session.pendingSlot != null) {
       await _fillPendingSlotAndProceed(context, raw, lower);
       return;
     }
 
-    // Desambiguación genérica de “eliminar/borrar” sin objeto
+    // Togglear confirmaciones
+    if (_isToggleConfirmOnIntent(lower)) {
+      _confirmCreateEdit = true;
+      final m = 'Confirmaciones activadas.';
+      prompt.value = m; await speak(m); return;
+    }
+    if (_isToggleConfirmOffIntent(lower)) {
+      _confirmCreateEdit = false;
+      final m = 'Confirmaciones desactivadas.';
+      prompt.value = m; await speak(m); return;
+    }
+
+    // Detener lectura
+    if (_isStopReadingIntent(lower)) {
+      await stopTts();
+      prompt.value = 'Lectura detenida.'; await speak('Listo.');
+      return;
+    }
+
+    // Ayuda
+    if (_isHelpIntent(lower)) {
+      await speak(prompt.value);
+      return;
+    }
+
+    // Desambiguación genérica de eliminar
     if (_isGenericDeleteIntent(lower)) {
       _session.intent = _Intent.genericDelete;
       _askFor(
         context,
         slot: 'targetType',
-        text:
-            '¿Qué deseas eliminar: una nota o una carpeta? Dímelo con su nombre después.',
+        text: '¿Qué deseas eliminar: una nota o una carpeta? Dímelo con su nombre después.',
       );
       return;
     }
 
-    // Abrir nota
-    if (_isOpenNoteIntent(lower) ||
-        (lower.startsWith('abre ') && _mentionsNote(lower))) {
+    // ======== Notas ========
+    if (_isOpenNoteIntent(lower) || (lower.startsWith('abre ') && _mentionsNote(lower))) {
       _session.intent = _Intent.openNote;
       _session.title = _extractOpenTitle(raw, lower);
       if (_session.title == null || _session.title!.isEmpty) {
-        _askFor(
-          context,
-          slot: 'title',
-          text: '¿Cómo se llama la nota (o archivo) que debo abrir?',
-        );
+        _askFor(context, slot: 'title', text: '¿Cómo se llama la nota (o archivo) que debo abrir?');
         return;
       }
       await _doOpen(context);
       return;
     }
 
-    // Crear nota (y luego ofrecer carpeta si no se dijo)
     if (_isCreateNoteIntent(lower)) {
       _session.intent = _Intent.createNote;
       final res = _extractCreate(raw, lower);
@@ -988,12 +894,7 @@ class VoiceAssistant {
 
       if ((_session.title == null || _session.title!.isEmpty) &&
           (_session.content == null || _session.content!.isEmpty)) {
-        _askFor(
-          context,
-          slot: 'title',
-          text:
-              'Vamos a crear la nota. ¿Qué título le pongo? Luego te pediré el contenido.',
-        );
+        _askFor(context, slot: 'title', text: 'Vamos a crear la nota. ¿Qué título le pongo? Luego te pediré el contenido.');
         return;
       }
       if (_session.title == null || _session.title!.isEmpty) {
@@ -1005,15 +906,10 @@ class VoiceAssistant {
         return;
       }
 
-      // Pregunta opcional de carpeta (solo una vez)
+      // Pregunta opcional carpeta
       if (!_session.askedFolderForCreate && (_session.folder == null)) {
         _session.askedFolderForCreate = true;
-        _askFor(
-          context,
-          slot: 'folderOptional',
-          text:
-              '¿Quieres guardarla en alguna carpeta? Dime el nombre o di "ninguna".',
-        );
+        _askFor(context, slot: 'folderOptional', text: '¿Quieres guardarla en alguna carpeta? Dime el nombre o di "ninguna".');
         return;
       }
 
@@ -1025,51 +921,28 @@ class VoiceAssistant {
       return;
     }
 
-    // Eliminar nota
     if (_isDeleteNoteIntent(lower)) {
       _session.intent = _Intent.deleteNote;
       _session.title = _extractDeleteTitle(raw, lower);
       if (_session.title == null || _session.title!.isEmpty) {
-        _askFor(
-          context,
-          slot: 'title',
-          text: '¿Qué nota o archivo debo eliminar?',
-        );
-        return;
-      }
-      await _askConfirmCurrent(context); // confirmación antes de borrar
-      return;
-    }
-
-    // Eliminar carpeta
-    if (_isDeleteFolderIntent(lower)) {
-      _session.intent = _Intent.deleteFolder;
-      _session.folder = _extractFolderName(raw, lower);
-      if (_session.folder == null || _session.folder!.isEmpty) {
-        _askFor(context, slot: 'folder', text: '¿Qué carpeta debo eliminar?');
+        _askFor(context, slot: 'title', text: '¿Qué nota o archivo debo eliminar?');
         return;
       }
       await _askConfirmCurrent(context);
       return;
     }
 
-    // Restaurar nota
     if (_isRestoreNoteIntent(lower)) {
       _session.intent = _Intent.restoreNote;
       _session.title = _extractRestoreTitle(raw, lower);
       if (_session.title == null || _session.title!.isEmpty) {
-        _askFor(
-          context,
-          slot: 'title',
-          text: '¿Qué nota eliminada debo restaurar?',
-        );
+        _askFor(context, slot: 'title', text: '¿Qué nota eliminada debo restaurar?');
         return;
       }
       await _doRestore(context);
       return;
     }
 
-    // Editar nota
     if (_isEditNoteIntent(lower)) {
       _session.intent = _Intent.editNote;
       final res = _extractEdit(raw, lower);
@@ -1077,11 +950,7 @@ class VoiceAssistant {
       _session.content = res.content;
 
       if (_session.title == null || _session.title!.isEmpty) {
-        _askFor(
-          context,
-          slot: 'title',
-          text: '¿Cuál es el título de la nota (o archivo) que debo editar?',
-        );
+        _askFor(context, slot: 'title', text: '¿Cuál es el título de la nota (o archivo) que debo editar?');
         return;
       }
       if (_session.content == null || _session.content!.isEmpty) {
@@ -1097,7 +966,17 @@ class VoiceAssistant {
       return;
     }
 
-    // Buscar
+    if (_isReadNoteIntent(lower)) {
+      _session.intent = _Intent.readNoteAloud;
+      _session.title = _extractOpenTitle(raw, lower) ?? _extractTitleByNamePatterns(lower);
+      if (_session.title == null || _session.title!.isEmpty) {
+        _askFor(context, slot: 'title', text: '¿Qué nota debo leer en voz alta?');
+        return;
+      }
+      await _doReadNoteAloud(context);
+      return;
+    }
+
     if (_isSearchIntent(lower)) {
       _session.intent = _Intent.search;
       _session.query = _extractQuery(raw, lower);
@@ -1109,26 +988,18 @@ class VoiceAssistant {
       return;
     }
 
-    // Crear carpeta
+    // ======== Carpetas ========
     if (_isCreateFolderIntent(lower)) {
       _session.intent = _Intent.createFolder;
       _session.folder = _extractFolderName(raw, lower);
-
       if (_session.folder == null || _session.folder!.isEmpty) {
-        _askFor(
-          context,
-          slot: 'folder',
-          text:
-              'Perfecto. Vamos a crear una carpeta. ¿Cómo se llamará la carpeta?',
-        );
+        _askFor(context, slot: 'folder', text: 'Perfecto. Vamos a crear una carpeta. ¿Cómo se llamará la carpeta?');
         return;
       }
-
       await _doCreateFolder(context);
       return;
     }
 
-    // Abrir carpeta
     if (_isOpenFolderIntent(lower)) {
       _session.intent = _Intent.openFolder;
       _session.folder = _extractFolderName(raw, lower);
@@ -1140,7 +1011,6 @@ class VoiceAssistant {
       return;
     }
 
-    // Renombrar carpeta
     if (_isRenameFolderIntent(lower)) {
       _session.intent = _Intent.renameFolder;
       final rn = _extractFolderRename(raw, lower);
@@ -1151,18 +1021,25 @@ class VoiceAssistant {
         return;
       }
       if (_session.newFolder == null || _session.newFolder!.isEmpty) {
-        _askFor(
-          context,
-          slot: 'newFolder',
-          text: '¿Cuál será el nuevo nombre?',
-        );
+        _askFor(context, slot: 'newFolder', text: '¿Cuál será el nuevo nombre?');
         return;
       }
       await _doRenameFolder(context);
       return;
     }
 
-    // Crear nota en carpeta
+    if (_isDeleteFolderIntent(lower)) {
+      _session.intent = _Intent.deleteFolder;
+      _session.folder = _extractFolderName(raw, lower);
+      if (_session.folder == null || _session.folder!.isEmpty) {
+        _askFor(context, slot: 'folder', text: '¿Qué carpeta debo eliminar?');
+        return;
+      }
+      await _askConfirmCurrent(context);
+      return;
+    }
+
+    // Notas dentro/entre carpetas
     if (_isCreateNoteInFolderIntent(lower)) {
       _session.intent = _Intent.createNoteInFolder;
       final res = _extractCreate(raw, lower);
@@ -1186,7 +1063,6 @@ class VoiceAssistant {
       return;
     }
 
-    // Mover nota a carpeta
     if (_isMoveNoteToFolderIntent(lower)) {
       _session.intent = _Intent.moveNoteToFolder;
       final mv = _extractMoveNote(raw, lower);
@@ -1205,25 +1081,59 @@ class VoiceAssistant {
       return;
     }
 
-    // Navegación directa
-    if (_hasAny(lower, [
-      'ver eliminados',
-      'mostrar eliminados',
-      'abrir eliminados',
-    ])) {
-      await _speakAndNavigate(
-        context,
-        message: 'Abriendo eliminados…',
-        route: '/deleted',
-      );
+    if (_isMoveNoteToRootIntent(lower)) {
+      _session.intent = _Intent.moveNoteToRoot;
+      // intenta extraer título
+      _session.noteTitle = _firstQuoted(raw) ??
+          _extractTitleByNamePatterns(lower) ??
+          _afterMany(lower, ['mover la nota','mueve la nota','llevar la nota','lleva la nota']);
+      if (_session.noteTitle == null || _session.noteTitle!.isEmpty) {
+        _askFor(context, slot: 'noteTitle', text: '¿Qué nota debo mover a ninguna carpeta?');
+        return;
+      }
+      await _doMoveNoteToRoot(context);
       return;
     }
-    if (_hasAny(lower, ['ver notas', 'abrir notas', 'mostrar notas'])) {
-      await _speakAndNavigate(
-        context,
-        message: 'Abriendo notas…',
-        route: '/notes',
-      );
+
+    // Listados / navegación
+    if (_isListFoldersIntent(lower)) {
+      _session.intent = _Intent.listFolders;
+      await _speakAndNavigate(context, message: 'Mostrando carpetas…', route: '/folders');
+      return;
+    }
+
+    if (_isListNotesInFolderIntent(lower)) {
+      _session.intent = _Intent.listNotesInFolder;
+      _session.folder = _extractFolderName(raw, lower);
+      if (_session.folder == null || _session.folder!.isEmpty) {
+        _askFor(context, slot: 'folder', text: '¿De qué carpeta muestro las notas?');
+        return;
+      }
+      await _speakAndNavigate(context, message: 'Mostrando notas de ${_session.folder}…', route: '/notes', arguments: {'folder': _session.folder});
+      return;
+    }
+
+    if (_isListNotesIntent(lower)) {
+      _session.intent = _Intent.listNotes;
+      await _speakAndNavigate(context, message: 'Mostrando notas…', route: '/notes');
+      return;
+    }
+
+    if (_isOpenDeletedIntent(lower)) {
+      _session.intent = _Intent.openDeleted;
+      await _speakAndNavigate(context, message: 'Abriendo Eliminados…', route: '/deleted');
+      return;
+    }
+
+    if (_isEmptyTrashIntent(lower)) {
+      _session.intent = _Intent.emptyTrash;
+      await _speakAndNavigate(context, message: 'Abriendo Eliminados para vaciar…', route: '/deleted', arguments: {'action':'empty'});
+      return;
+    }
+
+    if (_isRestoreAllTrashIntent(lower)) {
+      _session.intent = _Intent.restoreAllTrash;
+      await _speakAndNavigate(context, message: 'Abriendo Eliminados para restaurar todo…', route: '/deleted', arguments: {'action':'restoreAll'});
       return;
     }
 
@@ -1234,10 +1144,12 @@ class VoiceAssistant {
         '"editar nota compras que diga leche", '
         '"eliminar nota compras", "restaurar nota compras", "buscar recetas". '
         'Carpetas: "crear carpeta trabajo", "abrir carpeta clientes", '
-        '"renombra la carpeta trabajo a clientes", '
-        '"crear nota lista en la carpeta mercado que diga leche", '
-        '"mover la nota compras a la carpeta mercado", '
-        '"eliminar carpeta trabajo".';
+        '"renombra la carpeta trabajo a clientes", "eliminar carpeta trabajo". '
+        'Entre carpetas: "crear nota X en la carpeta Y", "mover la nota X a la carpeta Y", '
+        '"mover la nota X a ninguna carpeta". '
+        'Listados: "listar carpetas", "listar notas", "listar notas de la carpeta Y". '
+        'Papelera: "ver eliminados", "vaciar eliminados", "restaurar todo". '
+        'Voz: "leer la nota X", "detener lectura".';
     prompt.value = fb;
     await speak(fb);
   }
@@ -1254,11 +1166,7 @@ class VoiceAssistant {
       case 'title':
         _session.title = _firstQuoted(raw) ?? _stripTitle(raw.trim());
         if (_session.title == null || _session.title!.isEmpty) {
-          _askFor(
-            context,
-            slot: 'title',
-            text: 'No te entendí. Repite el título, por favor.',
-          );
+          _askFor(context, slot: 'title', text: 'No te entendí. Repite el título, por favor.');
           return;
         }
         break;
@@ -1266,11 +1174,7 @@ class VoiceAssistant {
         final quoted = _firstQuoted(raw);
         _session.content = _stripContent(quoted ?? raw.trim());
         if (_session.content == null || _session.content!.isEmpty) {
-          _askFor(
-            context,
-            slot: 'content',
-            text: 'No te entendí. Repite el contenido.',
-          );
+          _askFor(context, slot: 'content', text: 'No te entendí. Repite el contenido.');
           return;
         }
         break;
@@ -1278,78 +1182,45 @@ class VoiceAssistant {
         final q = _firstQuoted(raw) ?? raw.trim();
         _session.query = _stripContent(q);
         if (_session.query == null || _session.query!.isEmpty) {
-          _askFor(
-            context,
-            slot: 'query',
-            text: 'No te entendí. ¿Qué quieres buscar?',
-          );
+          _askFor(context, slot: 'query', text: 'No te entendí. ¿Qué quieres buscar?');
           return;
         }
         break;
       case 'confirm':
-        final l = lower;
-        if (_isAffirmative(l)) {
-          if (_session.intent == _Intent.createNote) {
-            await _doCreate(context);
-            return;
-          }
-          if (_session.intent == _Intent.editNote) {
-            await _doEdit(context);
-            return;
-          }
-          if (_session.intent == _Intent.deleteNote) {
-            await _doDelete(context);
-            return;
-          }
-          if (_session.intent == _Intent.deleteFolder) {
-            await _doDeleteFolder(context);
-            return;
-          }
+        if (_isAffirmative(lower)) {
+          if (_session.intent == _Intent.createNote) { await _doCreate(context); return; }
+          if (_session.intent == _Intent.editNote)   { await _doEdit(context);   return; }
+          if (_session.intent == _Intent.deleteNote) { await _doDelete(context); return; }
+          if (_session.intent == _Intent.deleteFolder) { await _doDeleteFolder(context); return; }
           return;
-        } else if (_isNegative(l)) {
+        } else if (_isNegative(lower)) {
           final msg = 'Cancelado. Toca “Hablar” para indicarlo de nuevo.';
-          prompt.value = msg;
-          await speak(msg);
-          _session.clear();
-          return;
+          prompt.value = msg; await speak(msg);
+          _session.clear(); return;
         } else {
           _session.pendingSlot = 'confirm';
           final msg = '¿Confirmo? Di "sí" o "no".';
-          prompt.value = msg;
-          await speak(msg);
-          _startIdleTimer(context);
-          return;
+          prompt.value = msg; await speak(msg);
+          _startIdleTimer(context); return;
         }
       case 'folder':
         _session.folder = _firstQuoted(raw) ?? _stripTitle(raw.trim());
         if (_session.folder == null || _session.folder!.isEmpty) {
-          _askFor(
-            context,
-            slot: 'folder',
-            text: 'No te entendí. ¿Cuál es el nombre de la carpeta?',
-          );
+          _askFor(context, slot: 'folder', text: 'No te entendí. ¿Cuál es el nombre de la carpeta?');
           return;
         }
         break;
       case 'newFolder':
         _session.newFolder = _firstQuoted(raw) ?? _stripTitle(raw.trim());
         if (_session.newFolder == null || _session.newFolder!.isEmpty) {
-          _askFor(
-            context,
-            slot: 'newFolder',
-            text: 'No te entendí. ¿Cuál es el nuevo nombre de la carpeta?',
-          );
+          _askFor(context, slot: 'newFolder', text: 'No te entendí. ¿Cuál es el nuevo nombre de la carpeta?');
           return;
         }
         break;
       case 'noteTitle':
         _session.noteTitle = _firstQuoted(raw) ?? _stripTitle(raw.trim());
         if (_session.noteTitle == null || _session.noteTitle!.isEmpty) {
-          _askFor(
-            context,
-            slot: 'noteTitle',
-            text: 'No te entendí. ¿Cuál es el título de la nota?',
-          );
+          _askFor(context, slot: 'noteTitle', text: 'No te entendí. ¿Cuál es el título de la nota?');
           return;
         }
         break;
@@ -1360,24 +1231,14 @@ class VoiceAssistant {
           _session.intent = _Intent.deleteFolder;
           _askFor(context, slot: 'folder', text: '¿Cómo se llama la carpeta?');
           return;
-        } else if (txt.contains('nota') ||
-            txt.contains('archivo') ||
-            txt.contains('apunte')) {
+        } else if (txt.contains('nota') || txt.contains('archivo') || txt.contains('apunte')) {
           _session.targetType = 'nota';
           _session.intent = _Intent.deleteNote;
-          _askFor(
-            context,
-            slot: 'title',
-            text: '¿Cómo se llama la nota o archivo?',
-          );
+          _askFor(context, slot: 'title', text: '¿Cómo se llama la nota o archivo?');
           return;
         } else {
           _session.pendingSlot = 'targetType';
-          _askFor(
-            context,
-            slot: 'targetType',
-            text: 'No te entendí. ¿Elimino una nota o una carpeta?',
-          );
+          _askFor(context, slot: 'targetType', text: 'No te entendí. ¿Elimino una nota o una carpeta?');
           return;
         }
       case 'folderOptional':
@@ -1395,7 +1256,7 @@ class VoiceAssistant {
         return;
     }
 
-    // Completar flujo: crear carpeta (cuando venimos de pedir el nombre)
+    // Completar flujos según intención
     if (_session.intent == _Intent.createFolder) {
       if (_session.folder == null || _session.folder!.isEmpty) {
         _askFor(context, slot: 'folder', text: '¿Cómo se llamará la carpeta?');
@@ -1405,20 +1266,14 @@ class VoiceAssistant {
       return;
     }
 
-    // Tras llenar slot, si es crear/editar y ya tenemos ambos, preguntar confirmación si procede
     if (_needConfirmNow()) {
       await _askConfirmCurrent(context);
       return;
     }
 
-    // Completar flujos de carpetas si aplica
     if (_session.intent == _Intent.createNoteInFolder) {
       if (_session.title == null || _session.title!.isEmpty) {
-        _askFor(
-          context,
-          slot: 'title',
-          text: '¿Qué título le pongo a la nota?',
-        );
+        _askFor(context, slot: 'title', text: '¿Qué título le pongo a la nota?');
         return;
       }
       if (_session.folder == null || _session.folder!.isEmpty) {
@@ -1439,11 +1294,7 @@ class VoiceAssistant {
         return;
       }
       if (_session.newFolder == null || _session.newFolder!.isEmpty) {
-        _askFor(
-          context,
-          slot: 'newFolder',
-          text: '¿Cuál será el nuevo nombre?',
-        );
+        _askFor(context, slot: 'newFolder', text: '¿Cuál será el nuevo nombre?');
         return;
       }
       await _doRenameFolder(context);
@@ -1463,55 +1314,69 @@ class VoiceAssistant {
       return;
     }
 
-    // Ejecutar según la intención pendiente
+    if (_session.intent == _Intent.moveNoteToRoot) {
+      if (_session.noteTitle == null || _session.noteTitle!.isEmpty) {
+        _askFor(context, slot: 'noteTitle', text: '¿Qué nota debo mover a ninguna carpeta?');
+        return;
+      }
+      await _doMoveNoteToRoot(context);
+      return;
+    }
+
+    // Ejecutar pendientes simples
     switch (_session.intent) {
-      case _Intent.openNote:
-        await _doOpen(context);
-        break;
+      case _Intent.openNote:        await _doOpen(context); break;
       case _Intent.createNote:
         if (_session.content == null || _session.content!.isEmpty) {
           _askFor(context, slot: 'content', text: 'Ahora dime el contenido.');
           return;
         }
-        // si no preguntamos por carpeta aún, ofrecer
         if (!_session.askedFolderForCreate && (_session.folder == null)) {
           _session.askedFolderForCreate = true;
-          _askFor(
-            context,
-            slot: 'folderOptional',
-            text:
-                '¿Quieres guardarla en alguna carpeta? Dime el nombre o di "ninguna".',
-          );
+          _askFor(context, slot: 'folderOptional', text: '¿Quieres guardarla en alguna carpeta? Dime el nombre o di "ninguna".');
           return;
         }
         await _doCreate(context);
         break;
-      case _Intent.deleteNote:
-        await _askConfirmCurrent(context);
-        break;
-      case _Intent.deleteFolder:
-        await _askConfirmCurrent(context);
-        break;
-      case _Intent.restoreNote:
-        await _doRestore(context);
-        break;
+      case _Intent.deleteNote:      await _askConfirmCurrent(context); break;
+      case _Intent.deleteFolder:    await _askConfirmCurrent(context); break;
+      case _Intent.restoreNote:     await _doRestore(context); break;
       case _Intent.editNote:
         if (_session.content == null || _session.content!.isEmpty) {
           _askFor(context, slot: 'content', text: 'Dime el nuevo contenido.');
           return;
         }
-        await _doEdit(context);
+        await _doEdit(context); break;
+      case _Intent.search:          await _doSearch(context); break;
+
+      // navegación/listas (por si llegaron aquí)
+      case _Intent.listFolders:     await _speakAndNavigate(context, message: 'Mostrando carpetas…', route: '/folders'); break;
+      case _Intent.listNotes:       await _speakAndNavigate(context, message: 'Mostrando notas…', route: '/notes'); break;
+      case _Intent.listNotesInFolder:
+        if (_session.folder == null) {
+          _askFor(context, slot: 'folder', text: '¿De qué carpeta muestro las notas?');
+          return;
+        }
+        await _speakAndNavigate(context, message: 'Mostrando notas de ${_session.folder}…', route: '/notes', arguments: {'folder': _session.folder});
         break;
-      case _Intent.search:
-        await _doSearch(context);
+      case _Intent.openDeleted:     await _speakAndNavigate(context, message: 'Abriendo Eliminados…', route: '/deleted'); break;
+      case _Intent.emptyTrash:      await _speakAndNavigate(context, message: 'Abriendo Eliminados para vaciar…', route: '/deleted', arguments: {'action':'empty'}); break;
+      case _Intent.restoreAllTrash: await _speakAndNavigate(context, message: 'Abriendo Eliminados para restaurar todo…', route: '/deleted', arguments: {'action':'restoreAll'}); break;
+
+      // varios
+      case _Intent.readNoteAloud:
+        if (_session.title == null || _session.title!.isEmpty) {
+          _askFor(context, slot: 'title', text: '¿Qué nota debo leer?');
+          return;
+        }
+        await _doReadNoteAloud(context);
         break;
-      case _Intent.createFolder:
-      case _Intent.openFolder:
-      case _Intent.renameFolder:
-      case _Intent.createNoteInFolder:
-      case _Intent.moveNoteToFolder:
-      case _Intent.genericDelete:
-      case _Intent.none:
+      case _Intent.stopReading:     await stopTts(); break;
+      case _Intent.toggleConfirmOn: case _Intent.toggleConfirmOff:
+      case _Intent.createFolder: case _Intent.openFolder:
+      case _Intent.renameFolder: case _Intent.createNoteInFolder:
+      case _Intent.moveNoteToFolder: case _Intent.moveNoteToRoot:
+      case _Intent.help: case _Intent.genericDelete: case _Intent.none:
         prompt.value = 'Toca “Hablar” y dime qué hacer.';
         await speak('Toca “Hablar” y dime qué hacer.');
         break;
@@ -1528,43 +1393,26 @@ class VoiceAssistant {
     }
     if (n == null) {
       final msg = 'No encontré la nota $q.';
-      prompt.value = msg;
-      await speak(msg);
+      prompt.value = msg; await speak(msg);
       prompt.value = 'Toca “Hablar” para intentar con otro título.';
       await speak('¿Quieres intentar con otro título? Toca “Hablar”.');
     } else {
       final msg = 'Abriendo la nota $q…';
-      await _speakAndNavigate(
-        context,
-        message: msg,
-        route: '/note-detail',
-        arguments: n.id,
-      );
+      await _speakAndNavigate(context, message: msg, route: '/note-detail', arguments: n.id);
     }
   }
 
   Future<void> _doCreate(BuildContext context) async {
     final args = <String, String>{};
-    if (_session.title?.isNotEmpty == true) {
-      args['title'] = _session.title!.trim();
-    }
-    if (_session.content?.isNotEmpty == true) {
-      args['content'] = _session.content!.trim();
-    }
-    if (_session.folder?.isNotEmpty == true) {
-      args['folder'] = _session.folder!.trim(); // nueva: guardar en carpeta
-    }
+    if (_session.title?.isNotEmpty == true)   args['title'] = _session.title!.trim();
+    if (_session.content?.isNotEmpty == true) args['content'] = _session.content!.trim();
+    if (_session.folder?.isNotEmpty == true)  args['folder'] = _session.folder!.trim();
 
     final msg = args['title'] != null
         ? 'Creando nota titulada ${args['title']}…'
         : 'Creando nueva nota…';
 
-    await _speakAndNavigate(
-      context,
-      message: msg,
-      route: '/new-note',
-      arguments: args,
-    );
+    await _speakAndNavigate(context, message: msg, route: '/new-note', arguments: args);
   }
 
   Future<void> _doDelete(BuildContext context) async {
@@ -1576,22 +1424,19 @@ class VoiceAssistant {
     }
     if (n == null) {
       final msg = 'No encontré la nota $q.';
-      prompt.value = msg;
-      await speak(msg);
+      prompt.value = msg; await speak(msg);
       prompt.value = 'Toca “Hablar” para intentar con otro título.';
       await speak('¿Quieres intentar con otro título? Toca “Hablar”.');
       return;
     }
 
     final pre = 'Eliminando la nota $q…';
-    prompt.value = pre;
-    await speak(pre);
+    prompt.value = pre; await speak(pre);
 
     await _repo.softDelete(n.id);
 
     final done = 'Listo. Nota $q enviada a Eliminados.';
-    prompt.value = done;
-    await speak(done);
+    prompt.value = done; await speak(done);
     _session.clear();
   }
 
@@ -1599,7 +1444,6 @@ class VoiceAssistant {
 
   Future<dynamic> _findFolderByName(String name) async {
     try {
-      // usamos el stream existente para obtener el snapshot actual
       final all = await _folderRepo.watch().first;
       for (final f in all) {
         final fname = (f.name ?? '').toString();
@@ -1618,32 +1462,23 @@ class VoiceAssistant {
       return;
     }
 
-    // Buscar la carpeta por nombre (insensible a mayúsculas)
     final folder = await _findFolderByName(name);
     if (folder == null) {
       final msg = 'No encontré la carpeta "$name".';
-      prompt.value = msg;
-      await speak(msg);
-      _session.clear();
-      return;
+      prompt.value = msg; await speak(msg);
+      _session.clear(); return;
     }
 
-    // Ejecutar la eliminación (mueve sus notas a "Eliminados")
-    final pre =
-        'Eliminando la carpeta "${folder.name}". Todas sus notas se moverán a "Eliminados".';
-    prompt.value = pre;
-    await speak(pre);
+    final pre = 'Eliminando la carpeta "${folder.name}". Todas sus notas se moverán a "Eliminados".';
+    prompt.value = pre; await speak(pre);
 
     await _folderRepo.deleteAndSoftDeleteNotes(folder.id);
 
     final done = 'Carpeta "${folder.name}" eliminada.';
-    prompt.value = done;
-    await speak(done);
+    prompt.value = done; await speak(done);
 
-    // 🔽 Aquí pegas este bloque
-    _safePop(context); // cierra overlay de voz
-    _safePush(context, '/'); // o la ruta donde se ven las carpetas
-
+    _safePop(context);
+    _safePush(context, '/'); // vuelve al inicio/lista
     _session.clear();
   }
 
@@ -1657,23 +1492,20 @@ class VoiceAssistant {
     }
     if (n == null) {
       final msg = 'No encontré una nota eliminada llamada $q.';
-      prompt.value = msg;
-      await speak(msg);
+      prompt.value = msg; await speak(msg);
       prompt.value = 'Toca “Hablar” para intentar con otro título.';
       await speak('¿Quieres intentar con otro título? Toca “Hablar”.');
       return;
     }
 
     final pre = 'Restaurando la nota $q…';
-    prompt.value = pre;
-    await speak(pre);
+    prompt.value = pre; await speak(pre);
 
-    // 👉 un solo write desde el repo: restaura y quita la carpeta
+    // Restaura a raíz
     await _repo.restoreToRoot(n.id);
 
     final done = 'Nota restaurada a Notas.';
-    prompt.value = done;
-    await speak(done);
+    prompt.value = done; await speak(done);
     _session.clear();
   }
 
@@ -1687,59 +1519,39 @@ class VoiceAssistant {
     }
     if (n == null) {
       final msg = 'No encontré la nota $t.';
-      prompt.value = msg;
-      await speak(msg);
+      prompt.value = msg; await speak(msg);
       prompt.value = 'Toca “Hablar” para intentar con otro título.';
       await speak('¿Quieres intentar con otro título? Toca “Hablar”.');
       return;
     }
 
     final pre = 'Actualizando la nota $t…';
-    prompt.value = pre;
-    await speak(pre);
+    prompt.value = pre; await speak(pre);
 
     await _repo.update(n.copyWith(content: c));
 
     final done = 'Contenido actualizado.';
-    prompt.value = done;
-    await speak(done);
+    prompt.value = done; await speak(done);
     _session.clear();
   }
 
   Future<void> _doSearch(BuildContext context) async {
     final q = _session.query!;
-    await _speakAndNavigate(
-      context,
-      message: 'Buscando "$q"…',
-      route: '/search',
-      arguments: {'query': q},
-    );
+    await _speakAndNavigate(context, message: 'Buscando "$q"…', route: '/search', arguments: {'query': q});
   }
 
   Future<void> _doCreateFolder(BuildContext context) async {
     final name = _session.folder?.trim();
-
     if (name == null || name.isEmpty) {
       _askFor(context, slot: 'folder', text: '¿Cómo se llamará la carpeta?');
       return;
     }
-
-    await _speakAndNavigate(
-      context,
-      message: 'Creando carpeta "$name"…',
-      route: '/new-folder',
-      arguments: {'prefill': name, 'autoSave': true},
-    );
+    await _speakAndNavigate(context, message: 'Creando carpeta "$name"…', route: '/new-folder', arguments: {'prefill': name, 'autoSave': true});
   }
 
   Future<void> _doOpenFolder(BuildContext context) async {
     final f = _session.folder!;
-    await _speakAndNavigate(
-      context,
-      message: 'Abriendo carpeta $f…',
-      route: '/notes',
-      arguments: {'folder': f},
-    );
+    await _speakAndNavigate(context, message: 'Abriendo carpeta $f…', route: '/notes', arguments: {'folder': f});
   }
 
   Future<void> _doRenameFolder(BuildContext context) async {
@@ -1748,41 +1560,56 @@ class VoiceAssistant {
     prompt.value = 'Renombrando carpeta $oldName a $newName…';
     await speak(prompt.value);
     _safePop(context);
-    _safePush(
-      context,
-      '/notes',
-      arguments: {'folderRenamedFrom': oldName, 'folderRenamedTo': newName},
-    );
+    _safePush(context, '/notes', arguments: {'folderRenamedFrom': oldName, 'folderRenamedTo': newName});
     _session.clear();
   }
 
   Future<void> _doCreateNoteInFolder(BuildContext context) async {
     final args = <String, String>{
       if (_session.title?.isNotEmpty == true) 'title': _session.title!.trim(),
-      if (_session.content?.isNotEmpty == true)
-        'content': _session.content!.trim(),
-      if (_session.folder?.isNotEmpty == true)
-        'folder': _session.folder!.trim(),
+      if (_session.content?.isNotEmpty == true) 'content': _session.content!.trim(),
+      if (_session.folder?.isNotEmpty == true) 'folder': _session.folder!.trim(),
     };
-    final msg =
-        'Creando nota "${_session.title ?? '(sin título)'}" en la carpeta ${_session.folder}…';
-    await _speakAndNavigate(
-      context,
-      message: msg,
-      route: '/new-note',
-      arguments: args,
-    );
+    final msg = 'Creando nota "${_session.title ?? '(sin título)'}" en la carpeta ${_session.folder}…';
+    await _speakAndNavigate(context, message: msg, route: '/new-note', arguments: args);
   }
 
   Future<void> _doMoveNoteToFolder(BuildContext context) async {
     final n = _session.noteTitle!;
     final f = _session.folder!;
     final msg = 'Moviendo la nota "$n" a la carpeta $f…';
-    prompt.value = msg;
-    await speak(msg);
+    prompt.value = msg; await speak(msg);
     _safePop(context);
     _safePush(context, '/notes', arguments: {'folder': f, 'movedNote': n});
     _session.clear();
+  }
+
+  Future<void> _doMoveNoteToRoot(BuildContext context) async {
+    final n = _session.noteTitle!;
+    final msg = 'Moviendo la nota "$n" a ninguna carpeta…';
+    prompt.value = msg; await speak(msg);
+    _safePop(context);
+    _safePush(context, '/notes', arguments: {'folder': null, 'movedNote': n});
+    _session.clear();
+  }
+
+  Future<void> _doReadNoteAloud(BuildContext context) async {
+    final t = _session.title!;
+    dynamic n;
+    for (final cand in _titleCandidates(t)) {
+      n = await _repo.findByTitleContains(cand);
+      if (n != null) break;
+    }
+    if (n == null) {
+      final msg = 'No encontré la nota $t para leerla.';
+      prompt.value = msg; await speak(msg);
+      return;
+    }
+    if ((n.content as String?)?.trim().isEmpty ?? true) {
+      await speak('La nota "$t" no tiene contenido.');
+      return;
+    }
+    await speak('Leyendo la nota "$t". ${n.content}');
   }
 
   // ========= Preguntar por un slot =========
@@ -1806,10 +1633,7 @@ class VoiceAssistant {
 
   void _safePush(BuildContext context, String route, {Object? arguments}) {
     Future.microtask(() {
-      Navigator.of(
-        context,
-        rootNavigator: true,
-      ).pushNamed(route, arguments: arguments);
+      Navigator.of(context, rootNavigator: true).pushNamed(route, arguments: arguments);
     });
   }
 
