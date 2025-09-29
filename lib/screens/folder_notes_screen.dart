@@ -2,14 +2,20 @@ import 'package:flutter/material.dart';
 import '../data/models/note.dart';
 import '../data/repositories/note_repository.dart';
 
-class NotesScreen extends StatefulWidget {
-  const NotesScreen({super.key});
+class FolderNotesScreen extends StatefulWidget {
+  final String folderId;
+  final String folderName;
+  const FolderNotesScreen({
+    super.key,
+    required this.folderId,
+    required this.folderName,
+  });
 
   @override
-  State<NotesScreen> createState() => _NotesScreenState();
+  State<FolderNotesScreen> createState() => _FolderNotesScreenState();
 }
 
-class _NotesScreenState extends State<NotesScreen> {
+class _FolderNotesScreenState extends State<FolderNotesScreen> {
   final _repo = NoteRepository();
   final _scroll = ScrollController();
   bool _editMode = false;
@@ -84,11 +90,12 @@ class _NotesScreenState extends State<NotesScreen> {
             ),
 
             // Título + buscador
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
-                'Notas',
-                style: TextStyle(
+                widget.folderName,
+                style: const TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                   fontFamily: 'SFProDisplay',
@@ -134,13 +141,12 @@ class _NotesScreenState extends State<NotesScreen> {
             ),
             const SizedBox(height: 12),
 
-            // LISTA con Scrollbar
+            // LISTA con Scrollbar (no se superpone)
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: StreamBuilder<List<Note>>(
-                  // solo raíz
-                  stream: _repo.watchByFolder(folderId: null),
+                  stream: _repo.watchByFolder(folderId: widget.folderId),
                   builder: (context, snap) {
                     final notes = snap.data ?? const <Note>[];
                     if (notes.isEmpty) {
@@ -224,7 +230,7 @@ class _NotesScreenState extends State<NotesScreen> {
               ),
             ),
 
-            // BARRA INFERIOR
+            // BARRA INFERIOR (dentro del flujo)
             SafeArea(
               top: false,
               child: Padding(
@@ -239,7 +245,7 @@ class _NotesScreenState extends State<NotesScreen> {
                           color: Color(0xFFFFCC00)),
                     ),
                     StreamBuilder<List<Note>>(
-                      stream: _repo.watchByFolder(folderId: null),
+                      stream: _repo.watchByFolder(folderId: widget.folderId),
                       builder: (context, snap) {
                         final total = (snap.data ?? const <Note>[]).length;
                         return Container(
@@ -261,7 +267,11 @@ class _NotesScreenState extends State<NotesScreen> {
                     ),
                     IconButton(
                       onPressed: () {
-                        Navigator.pushNamed(context, '/new-note');
+                        Navigator.pushNamed(
+                          context,
+                          '/new-note',
+                          arguments: {'folderId': widget.folderId},
+                        );
                       },
                       icon: const Icon(Icons.note_add_outlined,
                           color: Color(0xFFFFCC00)),

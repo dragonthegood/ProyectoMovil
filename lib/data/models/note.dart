@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Note {
   final String id;
   final String uid;
@@ -5,6 +7,7 @@ class Note {
   final String content;
   final bool isDeleted;
   final bool pinned;
+  final String? folderId;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -17,19 +20,83 @@ class Note {
     required this.pinned,
     required this.createdAt,
     required this.updatedAt,
+    this.folderId,
   });
 
-  factory Note.empty(String uid) {
-    final now = DateTime.now();
+  // -------- Helpers --------
+  static DateTime _toDate(dynamic v) {
+    if (v is Timestamp) return v.toDate();
+    if (v is DateTime) return v;
+    return DateTime.now().toUtc();
+  }
+
+  static DateTime _now() => DateTime.now().toUtc();
+
+  // -------- Factory VACÍO (lo que te falta) --------
+  /// Crea una nota vacía para el [uid]. Útil para `Note.empty(uid).copyWith(...)`.
+  /// Puedes pasar [folderId] si la nota nace dentro de una carpeta.
+  factory Note.empty(String uid, {String? folderId}) => Note(
+        id: '',                 // se completará luego (repo guarda ref.id)
+        uid: uid,
+        title: '',
+        content: '',
+        isDeleted: false,
+        pinned: false,
+        folderId: folderId,
+        createdAt: _now(),
+        updatedAt: _now(),
+      );
+
+  // -------- Factories desde Firestore --------
+  factory Note.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data()!;
     return Note(
-      id: '',
-      uid: uid,
-      title: '',
-      content: '',
-      isDeleted: false,
-      pinned: false,
-      createdAt: now,
-      updatedAt: now,
+      id: doc.id,
+      uid: data['uid'] ?? '',
+      title: data['title'] ?? '',
+      content: data['content'] ?? '',
+      isDeleted: data['isDeleted'] ?? false,
+      pinned: data['pinned'] ?? false,
+      folderId: data['folderId'],
+      createdAt: _toDate(data['createdAt']),
+      updatedAt: _toDate(data['updatedAt']),
+    );
+  }
+
+  factory Note.fromMap(Map<String, dynamic> map) => Note(
+        id: map['id'] ?? '',
+        uid: map['uid'] ?? '',
+        title: map['title'] ?? '',
+        content: map['content'] ?? '',
+        isDeleted: map['isDeleted'] ?? false,
+        pinned: map['pinned'] ?? false,
+        folderId: map['folderId'],
+        createdAt: _toDate(map['createdAt']),
+        updatedAt: _toDate(map['updatedAt']),
+      );
+
+  // -------- Copy/Map --------
+  Note copyWith({
+    String? id,
+    String? uid,
+    String? title,
+    String? content,
+    bool? isDeleted,
+    bool? pinned,
+    String? folderId,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return Note(
+      id: id ?? this.id,
+      uid: uid ?? this.uid,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      isDeleted: isDeleted ?? this.isDeleted,
+      pinned: pinned ?? this.pinned,
+      folderId: folderId ?? this.folderId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
@@ -40,53 +107,8 @@ class Note {
         'content': content,
         'isDeleted': isDeleted,
         'pinned': pinned,
-        'createdAt': createdAt.toUtc(),
-        'updatedAt': updatedAt.toUtc(),
+        'folderId': folderId,
+        'createdAt': createdAt,
+        'updatedAt': updatedAt,
       };
-
-  factory Note.fromMap(String id, Map<String, dynamic> map) {
-    final created = map['createdAt'];
-    final updated = map['updatedAt'];
-    DateTime toDt(dynamic v) {
-      if (v is DateTime) return v;
-      if (v is dynamic && v is! String && v is! int) {
-        try {
-          // Firestore Timestamp
-          return v.toDate();
-        } catch (_) {}
-      }
-      return DateTime.now();
-    }
-
-    return Note(
-      id: id,
-      uid: map['uid'] as String,
-      title: (map['title'] ?? '') as String,
-      content: (map['content'] ?? '') as String,
-      isDeleted: (map['isDeleted'] ?? false) as bool,
-      pinned: (map['pinned'] ?? false) as bool,
-      createdAt: toDt(created),
-      updatedAt: toDt(updated),
-    );
-  }
-
-  Note copyWith({
-    String? id,
-    String? title,
-    String? content,
-    bool? isDeleted,
-    bool? pinned,
-    DateTime? updatedAt,
-  }) {
-    return Note(
-      id: id ?? this.id,
-      uid: uid,
-      title: title ?? this.title,
-      content: content ?? this.content,
-      isDeleted: isDeleted ?? this.isDeleted,
-      pinned: pinned ?? this.pinned,
-      createdAt: createdAt,
-      updatedAt: updatedAt ?? DateTime.now(),
-    );
-  }
 }

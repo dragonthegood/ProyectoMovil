@@ -160,6 +160,22 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
     }
   }
 
+  /// Abre el lienzo de dibujo y guarda el resultado en la nota.
+  Future<void> _openDraw() async {
+    if (_original == null) return;
+    final result = await Navigator.pushNamed(
+      context,
+      '/draw',
+      arguments: {'noteId': _original!.id},
+    );
+    if (!mounted) return;
+    if (result == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dibujo guardado en la nota')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final noteId = ModalRoute.of(context)?.settings.arguments as String?;
@@ -267,8 +283,12 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
                         child: const Icon(Icons.image_outlined,
                             color: Color(0xFFFFCC00), size: 28),
                       ),
-                      const Icon(Icons.edit,
-                          color: Color(0xFFFFCC00), size: 28),
+                      // LÁPIZ -> ABRE /draw
+                      GestureDetector(
+                        onTap: _openDraw,
+                        child: const Icon(Icons.edit,
+                            color: Color(0xFFFFCC00), size: 28),
+                      ),
                       GestureDetector(
                         onTap: _save,
                         child: const Icon(Icons.save_rounded,

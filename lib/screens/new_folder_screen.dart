@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import '../data/repositories/folder_repository.dart';
 
+/// Pantalla para crear carpeta.
+/// - Manual: el usuario escribe y toca "Guardar".
+/// - Asistente: navegar a '/new-folder' con:
+///   - {'name': 'Trabajo'}  [modo legacy]
+///   - o {'prefill': 'Trabajo', 'autoSave': true}
 class NewFolderScreen extends StatefulWidget {
   const NewFolderScreen({super.key});
 
@@ -8,7 +14,74 @@ class NewFolderScreen extends StatefulWidget {
 }
 
 class _NewFolderScreenState extends State<NewFolderScreen> {
-  final TextEditingController _controller = TextEditingController(text: 'Nueva carpeta');
+  final _controller = TextEditingController(text: 'Nueva carpeta');
+  final _repo = FolderRepository();
+
+  bool _saving = false;
+  bool _autoTried = false; // evita doble guardado al entrar con argumentos
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_autoTried) return;
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+
+    String? prefill;
+    bool autoSave = false;
+
+    if (args is Map) {
+      // Compatibilidad: name (viejo), prefill (nuevo) y banderita autoSave
+      if (args['name'] is String) prefill = (args['name'] as String).trim();
+      if (args['prefill'] is String) prefill = (args['prefill'] as String).trim();
+      if (args['autoSave'] is bool) autoSave = args['autoSave'] as bool;
+    }
+
+    if ((prefill ?? '').isNotEmpty) {
+      _controller.text = prefill!;
+    }
+
+    if (autoSave && (_controller.text.trim().isNotEmpty)) {
+      _autoTried = true;
+      // Ejecutar tras el primer frame
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onSave(auto: true));
+    }
+  }
+
+  Future<void> _onSave({bool auto = false}) async {
+    if (_saving) return;
+
+    final name = _controller.text.trim();
+    if (name.isEmpty) {
+      if (!auto && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Escribe un nombre para la carpeta')),
+        );
+      }
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      await _repo.create(name);
+      if (!mounted) return;
+
+      if (!auto) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Carpeta "$name" creada')),
+        );
+      }
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo crear la carpeta: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,77 +90,52 @@ class _NewFolderScreenState extends State<NewFolderScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // AppBar manual
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Text(
+                    onTap: _saving ? null : () => Navigator.pop(context),
+                    child: Text(
                       'Cancelar',
                       style: TextStyle(
-                        color: Color(0xFFFFCC00),
                         fontSize: 16,
-                        fontFamily: 'SFProDisplay',
+                        color: _saving ? Colors.grey : const Color(0xFFFFCC00),
                       ),
                     ),
                   ),
                   const Text(
                     'Nueva carpeta',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontFamily: 'SFProDisplay',
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                   GestureDetector(
-                    onTap: () {
-                      final folderName = _controller.text.trim();
-                      if (folderName.isNotEmpty) {
-                        Navigator.pop(context, folderName);
-                      }
-                    },
-                    child: const Text(
-                      'Listo',
+                    onTap: _saving ? null : () => _onSave(),
+                    child: Text(
+                      _saving ? 'Guardando…' : 'Guardar',
                       style: TextStyle(
-                        color: Color(0xFFFFCC00),
                         fontSize: 16,
-                        fontFamily: 'SFProDisplay',
-                        fontWeight: FontWeight.w500,
+                        color: _saving ? Colors.grey : const Color(0xFFFFCC00),
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-
-            // TextField
+            const Divider(height: 1),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.all(16),
               child: TextField(
                 controller: _controller,
                 autofocus: true,
-                decoration: InputDecoration(
+                enabled: !_saving,
+                decoration: const InputDecoration(
+                  hintText: 'Nombre de la carpeta',
+                  border: OutlineInputBorder(borderSide: BorderSide.none),
                   filled: true,
                   fillColor: Colors.white,
-                  hintText: 'Nombre de carpeta',
-                  hintStyle: const TextStyle(fontFamily: 'SFProDisplay'),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear, color: Color(0xFFFFCC00)),
-                    onPressed: () => _controller.clear(),
-                  ),
                 ),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontFamily: 'SFProDisplay',
-                ),
+                onSubmitted: (_) => _onSave(),
               ),
             ),
           ],

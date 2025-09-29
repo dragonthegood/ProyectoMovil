@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 
 import 'screens/home_screen.dart';
+import 'screens/folder_notes_screen.dart';
 import 'screens/new_folder_screen.dart';
 import 'screens/notes_screen.dart';
 import 'screens/deleted_screen.dart';
@@ -12,6 +13,7 @@ import 'screens/deleted_note_detail_screen.dart';
 import 'screens/new_note_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/edit_note_screen.dart';
+import 'screens/draw_screen.dart'; 
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,8 +46,16 @@ class MyApp extends StatelessWidget {
         '/deleted': (context) => const DeletedScreen(),
         '/deleted-detail': (context) => const DeletedNoteDetailScreen(),
         '/new-note': (context) => const NewNoteScreen(),
+        '/draw': (_) => const DrawScreen(),
         '/search': (context) => const SearchScreen(),
-        '/new-folder': (context) => const NewFolderScreen(),
+        '/new-folder': (_) => const NewFolderScreen(),
+        '/folder-notes': (ctx) {
+          final args = ModalRoute.of(ctx)!.settings.arguments as Map;
+          return FolderNotesScreen(
+            folderId: args['id'],
+            folderName: args['name'],
+          );
+        },
       },
     );
   }

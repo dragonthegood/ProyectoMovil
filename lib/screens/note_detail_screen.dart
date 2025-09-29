@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../data/models/note.dart';
+import '../data/models/folder.dart';                  // <-- importa el modelo
 import '../data/repositories/note_repository.dart';
+import '../data/repositories/folder_repository.dart'; // <-- repositorio de carpetas
 
 class NoteDetailScreen extends StatelessWidget {
   const NoteDetailScreen({super.key});
@@ -152,123 +154,174 @@ class NoteDetailScreen extends StatelessWidget {
               return const Center(child: Text('Nota no encontrada'));
             }
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Back
-                Padding(
-                  padding: const EdgeInsets.only(left: 16, top: 16),
-                  child: GestureDetector(
-                    onTap: () =>
-                        Navigator.pushReplacementNamed(context, '/notes'),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.arrow_back_ios_new_rounded,
-                            color: Color(0xFFFFCC00), size: 20),
-                        SizedBox(width: 4),
-                        Text(
-                          'Notas',
-                          style: TextStyle(
-                            color: Color(0xFFFFCC00),
-                            fontSize: 16,
-                            fontFamily: 'SFProDisplay',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+            final inFolder =
+                note.folderId != null && note.folderId!.trim().isNotEmpty;
 
-                const SizedBox(height: 24),
+            // Pedimos el nombre de la carpeta (solo si aplica)
+            final Future<FolderModel?> folderFuture = inFolder
+                ? FolderRepository().getById(note.folderId!)
+                : Future.value(null);
 
-                // Título
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    note.title.isEmpty ? '(Sin título)' : note.title,
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'SFProDisplay',
-                      color: Color(0xFF000000),
-                    ),
-                  ),
-                ),
+            return FutureBuilder<FolderModel?>(
+              future: folderFuture,
+              builder: (context, folderSnap) {
+                final folderName =
+                    inFolder ? (folderSnap.data?.name ?? 'Carpeta') : 'Notas';
 
-                const SizedBox(height: 8),
-
-                // Fecha
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    _format(note.updatedAt),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF8C8C8C),
-                      fontFamily: 'SFProDisplay',
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Contenido
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: SingleChildScrollView(
-                      child: Text(
-                        note.content,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontFamily: 'SFProDisplay',
-                          color: Color(0xFF404040),
-                          height: 1.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Barra inferior (funcional)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      GestureDetector(
-                        onTap: () => _pickFile(note.id),
-                        child: const Icon(Icons.attachment,
-                            color: Color(0xFFFFCC00), size: 28),
-                      ),
-                      GestureDetector(
-                        onTap: () => _pickImage(note.id),
-                        child: const Icon(Icons.image_outlined,
-                            color: Color(0xFFFFCC00), size: 28),
-                      ),
-                      GestureDetector(
-                        onTap: () async {
-                          final result = await Navigator.pushNamed(
-                            context,
-                            '/edit-note',
-                            arguments: note.id,
-                          );
-                          if (result == true && context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Cambios guardados')),
-                            );
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Back dinámico (carpeta o notas)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16, top: 16),
+                      child: GestureDetector(
+                        onTap: () {
+                          if (Navigator.canPop(context)) {
+                            Navigator.pop(context);
+                          } else {
+                            // Fallback de deep-link: volvemos a la carpeta o a Notas
+                            if (inFolder) {
+                              Navigator.pushReplacementNamed(
+                                context,
+                                '/folder-notes',
+                                arguments: {
+                                  'id': note.folderId,
+                                  'name': folderName,
+                                },
+                              );
+                            } else {
+                              Navigator.pushReplacementNamed(
+                                  context, '/notes');
+                            }
                           }
                         },
-                        child: const Icon(Icons.edit,
-                            color: Color(0xFFFFCC00), size: 28),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: Color(0xFFFFCC00),
+                              size: 20,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              folderName, // <-- etiqueta dinámica
+                              style: const TextStyle(
+                                color: Color(0xFFFFCC00),
+                                fontSize: 16,
+                                fontFamily: 'SFProDisplay',
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      const Icon(Icons.save_rounded,
-                          color: Color(0xFFFFCC00), size: 28),
-                    ],
-                  ),
-                ),
-              ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Título
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        note.title.isEmpty ? '(Sin título)' : note.title,
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'SFProDisplay',
+                          color: Color(0xFF000000),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // Fecha
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        _format(note.updatedAt),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF8C8C8C),
+                          fontFamily: 'SFProDisplay',
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Contenido
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: SingleChildScrollView(
+                          child: Text(
+                            note.content,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontFamily: 'SFProDisplay',
+                              color: Color(0xFF404040),
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Barra inferior (funcional)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          GestureDetector(
+                            onTap: () => _pickFile(note.id),
+                            child: const Icon(
+                              Icons.attachment,
+                              color: Color(0xFFFFCC00),
+                              size: 28,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => _pickImage(note.id),
+                            child: const Icon(
+                              Icons.image_outlined,
+                              color: Color(0xFFFFCC00),
+                              size: 28,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () async {
+                              final result = await Navigator.pushNamed(
+                                context,
+                                '/edit-note',
+                                arguments: note.id,
+                              );
+                              if (result == true && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Cambios guardados'),
+                                  ),
+                                );
+                              }
+                            },
+                            child: const Icon(
+                              Icons.edit,
+                              color: Color(0xFFFFCC00),
+                              size: 28,
+                            ),
+                          ),
+                          const Icon(
+                            Icons.save_rounded,
+                            color: Color(0xFFFFCC00),
+                            size: 28,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             );
           },
         ),

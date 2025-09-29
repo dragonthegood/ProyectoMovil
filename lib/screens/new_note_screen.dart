@@ -18,6 +18,7 @@ class _NewNoteScreenState extends State<NewNoteScreen> {
 
   bool _saved = false;
   String? _noteId;
+  String? _folderId; // <-- carpeta destino (si viene)
   static const int _maxSize = 100 * 1024 * 1024;
 
   // ---- Helpers MIME
@@ -77,11 +78,14 @@ class _NewNoteScreenState extends State<NewNoteScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final args =
-        ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
-    if (args != null) {
-      _title.text = args['title'] ?? _title.text;
-      _content.text = args['content'] ?? _content.text;
+    // Acepta folderId y opcionalmente title/content
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map) {
+      _folderId = args['folderId'] as String?;
+      final t = args['title'] as String?;
+      final c = args['content'] as String?;
+      if (t != null) _title.text = t;
+      if (c != null) _content.text = c;
     }
   }
 
@@ -89,7 +93,7 @@ class _NewNoteScreenState extends State<NewNoteScreen> {
     if (_noteId != null) return _noteId!;
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final id = await _repo.create(
-      Note.empty(uid).copyWith(
+      Note.empty(uid, folderId: _folderId).copyWith(
         title: _title.text.trim(),
         content: _content.text.trim(),
       ),
@@ -109,11 +113,13 @@ class _NewNoteScreenState extends State<NewNoteScreen> {
 
     if (_noteId == null) {
       _noteId = await _repo.create(
-        Note.empty(uid).copyWith(title: t, content: c),
+        Note.empty(uid, folderId: _folderId).copyWith(title: t, content: c),
       );
     } else {
+      // ✅ conservamos folderId al actualizar
       await _repo.update(
-        Note.empty(uid).copyWith(id: _noteId!, title: t, content: c),
+        Note.empty(uid, folderId: _folderId)
+            .copyWith(id: _noteId!, title: t, content: c),
       );
     }
   }
@@ -133,21 +139,29 @@ class _NewNoteScreenState extends State<NewNoteScreen> {
 
     if (_noteId == null) {
       _noteId = await _repo.create(
-        Note.empty(uid).copyWith(title: t, content: c),
+        Note.empty(uid, folderId: _folderId).copyWith(title: t, content: c),
       );
     } else {
+      // ✅ conservamos folderId al actualizar
       await _repo.update(
-        Note.empty(uid).copyWith(id: _noteId!, title: t, content: c),
+        Note.empty(uid, folderId: _folderId)
+            .copyWith(id: _noteId!, title: t, content: c),
       );
     }
 
     _saved = true;
     if (!mounted) return;
-    Navigator.pushReplacementNamed(
-      context,
-      '/notes',
-      arguments: {'showSaved': true},
-    );
+
+    // Si viene de carpeta, volvemos a la carpeta; si no, a Notas
+    if (_folderId != null && _folderId!.isNotEmpty) {
+      Navigator.pop(context); // volver a la carpeta; se refresca por stream
+    } else {
+      Navigator.pushReplacementNamed(
+        context,
+        '/notes',
+        arguments: {'showSaved': true},
+      );
+    }
   }
 
   Future<void> _pickImage() async {
@@ -221,6 +235,21 @@ class _NewNoteScreenState extends State<NewNoteScreen> {
     );
   }
 
+  // --- abre el lienzo de dibujo
+  Future<void> _openDraw() async {
+    final id = await _ensureNoteId(); // necesitamos un id para guardar el PNG
+    final ok = await Navigator.pushNamed(
+      context,
+      '/draw',
+      arguments: {'noteId': id},
+    );
+    if (ok == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dibujo agregado')),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _autoSaveIfNeeded();
@@ -231,18 +260,17 @@ class _NewNoteScreenState extends State<NewNoteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // === DISEÑO ORIGINAL MANTENIDO ===
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Back "Notas"
+            // Back (a carpeta o a Notas)
             Padding(
               padding: const EdgeInsets.only(left: 16, top: 16),
               child: GestureDetector(
-                onTap: () => Navigator.pushReplacementNamed(context, '/notes'),
+                onTap: () => Navigator.pop(context),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: const [
@@ -250,7 +278,7 @@ class _NewNoteScreenState extends State<NewNoteScreen> {
                         color: Color(0xFFFFCC00), size: 20),
                     SizedBox(width: 4),
                     Text(
-                      'Notas',
+                      'Volver',
                       style: TextStyle(
                         color: Color(0xFFFFCC00),
                         fontSize: 16,
@@ -305,28 +333,36 @@ class _NewNoteScreenState extends State<NewNoteScreen> {
             ),
 
             // Barra inferior
-            Padding(
-              padding: const EdgeInsets.only(bottom: 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  GestureDetector(
-                    onTap: _pickFile,
-                    child: const Icon(Icons.attachment,
-                        color: Color(0xFFFFCC00), size: 28),
-                  ),
-                  GestureDetector(
-                    onTap: _pickImage,
-                    child: const Icon(Icons.image_outlined,
-                        color: Color(0xFFFFCC00), size: 28),
-                  ),
-                  const Icon(Icons.edit, color: Color(0xFFFFCC00), size: 28),
-                  GestureDetector(
-                    onTap: _save,
-                    child: const Icon(Icons.save_rounded,
-                        color: Color(0xFFFFCC00), size: 28),
-                  ),
-                ],
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    GestureDetector(
+                      onTap: _pickFile,
+                      child: const Icon(Icons.attachment,
+                          color: Color(0xFFFFCC00), size: 28),
+                    ),
+                    GestureDetector(
+                      onTap: _pickImage,
+                      child: const Icon(Icons.image_outlined,
+                          color: Color(0xFFFFCC00), size: 28),
+                    ),
+                    // 🖊️ Abrir lienzo de dibujo
+                    GestureDetector(
+                      onTap: _openDraw,
+                      child: const Icon(Icons.edit,
+                          color: Color(0xFFFFCC00), size: 28),
+                    ),
+                    GestureDetector(
+                      onTap: _save,
+                      child: const Icon(Icons.save_rounded,
+                          color: Color(0xFFFFCC00), size: 28),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
