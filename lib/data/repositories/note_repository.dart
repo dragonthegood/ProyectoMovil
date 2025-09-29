@@ -12,6 +12,27 @@ class NoteRepository {
   CollectionReference<Map<String, dynamic>> get _col =>
       _db.collection('users').doc(_uid).collection('notes');
 
+  // dentro de NoteRepository
+  Future<void> restoreToRoot(String noteId) async {
+    final ref = _col.doc(noteId); // ajusta si tu colección se llama distinto
+    // 1er intento: folderId = null
+    try {
+      await ref.update({
+        'isDeleted': false,
+        'folderId': null, // quita la carpeta
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return;
+    } catch (_) {
+      // 2º intento: si tu esquema no permite null, usar string vacía
+      await ref.update({
+        'isDeleted': false,
+        'folderId': '', // quita la carpeta (como vacío)
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
   // ------------------ NOTAS ------------------
 
   Future<String> create(Note note) async {

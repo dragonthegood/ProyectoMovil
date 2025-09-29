@@ -26,6 +26,41 @@ class _DeletedScreenState extends State<DeletedScreen> {
     super.dispose();
   }
 
+  // ========= NUEVO: restaurar siempre a "Notas" (sin carpeta) =========
+  // DeletedScreen: dentro de _DeletedScreenState
+  Future<void> _restoreToRoot(Note n) async {
+    try {
+      // 1) Restablecer la nota (pone isDeleted = false en el backend)
+      await _repo.restore(n.id);
+
+      // 2) Traer la versión fresca de la nota para no pisar "isDeleted"
+      final all = await _repo.watchNotes(includeDeleted: true).first;
+      final fresh = all.firstWhere(
+        (x) => x.id == n.id,
+        orElse: () => n, // fallback, por si acaso
+      );
+
+      // 3) Quitarle la carpeta (sin tocar isDeleted)
+      await _repo.update(
+        fresh.copyWith(folderId: null),
+      ); // o '' si tu backend prefiere vacío
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Nota "${fresh.title.isEmpty ? "(Sin título)" : fresh.title}" restaurada a Notas',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo restaurar la nota')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -44,8 +79,11 @@ class _DeletedScreenState extends State<DeletedScreen> {
                     onTap: () => Navigator.pop(context),
                     child: Row(
                       children: const [
-                        Icon(Icons.arrow_back_ios_new_rounded,
-                            color: Color(0xFFFFCC00), size: 20),
+                        Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Color(0xFFFFCC00),
+                          size: 20,
+                        ),
                         SizedBox(width: 4),
                         Text(
                           'Inicio',
@@ -73,7 +111,10 @@ class _DeletedScreenState extends State<DeletedScreen> {
                           ),
                         )
                       : IconButton(
-                          icon: const Icon(Icons.menu, color: Color(0xFFFFCC00)),
+                          icon: const Icon(
+                            Icons.menu,
+                            color: Color(0xFFFFCC00),
+                          ),
                           onPressed: () => setState(() => _editMode = true),
                         ),
                 ],
@@ -97,8 +138,10 @@ class _DeletedScreenState extends State<DeletedScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(10),
@@ -142,9 +185,7 @@ class _DeletedScreenState extends State<DeletedScreen> {
                   stream: _repo.watchNotes(includeDeleted: true),
                   builder: (context, snap) {
                     final all = snap.data ?? const <Note>[];
-                    final deleted = all
-                        .where((n) => n.isDeleted)
-                        .toList()
+                    final deleted = all.where((n) => n.isDeleted).toList()
                       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
                     if (deleted.isEmpty) {
@@ -173,11 +214,10 @@ class _DeletedScreenState extends State<DeletedScreen> {
                           final snippet = n.content.trim().isEmpty
                               ? ''
                               : (n.content.length > 60
-                                  ? '${n.content.substring(0, 60)}...'
-                                  : n.content);
+                                    ? '${n.content.substring(0, 60)}...'
+                                    : n.content);
                           return _DeletedNoteItem(
-                            title:
-                                n.title.isEmpty ? '(Sin título)' : n.title,
+                            title: n.title.isEmpty ? '(Sin título)' : n.title,
                             date: _format(n.updatedAt),
                             subtitle: snippet,
                             editMode: _editMode,
@@ -190,7 +230,18 @@ class _DeletedScreenState extends State<DeletedScreen> {
                                 );
                               }
                             },
-                            onRestore: () => _repo.restore(n.id),
+                            // ===== CAMBIO CLAVE: restaurar a "Notas"
+                            onRestore: () async {
+                              await _repo.restoreToRoot(n.id);
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Nota "${n.title.isEmpty ? "(Sin título)" : n.title}" restaurada a Notas',
+                                  ),
+                                ),
+                              );
+                            },
                             onHardDelete: () => _repo.hardDelete(n.id),
                           );
                         },
@@ -205,8 +256,10 @@ class _DeletedScreenState extends State<DeletedScreen> {
             SafeArea(
               top: false,
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -214,8 +267,10 @@ class _DeletedScreenState extends State<DeletedScreen> {
                       onPressed: () async {
                         await VoiceAssistant.I.openOverlay(context);
                       },
-                      icon: const Icon(Icons.mic_none,
-                          color: Color(0xFFFFCC00)),
+                      icon: const Icon(
+                        Icons.mic_none,
+                        color: Color(0xFFFFCC00),
+                      ),
                     ),
                     StreamBuilder<List<Note>>(
                       stream: _repo.watchNotes(includeDeleted: true),
@@ -225,7 +280,9 @@ class _DeletedScreenState extends State<DeletedScreen> {
                             .length;
                         return Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFE5E5EA),
                             borderRadius: BorderRadius.circular(20),
@@ -240,7 +297,7 @@ class _DeletedScreenState extends State<DeletedScreen> {
                         );
                       },
                     ),
-                    const SizedBox(width: 48), // espacio simétrico (no hay botón derecho)
+                    const SizedBox(width: 48),
                   ],
                 ),
               ),
@@ -304,20 +361,29 @@ class _DeletedNoteItem extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.restore,
-                        color: Colors.black54, size: 20),
+                    icon: const Icon(
+                      Icons.restore,
+                      color: Colors.black54,
+                      size: 20,
+                    ),
                     onPressed: onRestore,
                   ),
                   const SizedBox(width: 4),
                   IconButton(
-                    icon: const Icon(Icons.delete_forever,
-                        color: Color(0xFFFF3B30), size: 20),
+                    icon: const Icon(
+                      Icons.delete_forever,
+                      color: Color(0xFFFF3B30),
+                      size: 20,
+                    ),
                     onPressed: onHardDelete,
                   ),
                 ],
               )
-            : const Icon(Icons.arrow_forward_ios_rounded,
-                size: 14, color: Color(0xFF8C8C8C)),
+            : const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: Color(0xFF8C8C8C),
+              ),
       ),
     );
   }

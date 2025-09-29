@@ -17,6 +17,68 @@ class _HomeScreenState extends State<HomeScreen> {
   final _repo = NoteRepository();
   final _folderRepo = FolderRepository();
 
+  // ===== NUEVO: manejar args entrantes desde el asistente (una sola vez) =====
+  bool _handledRouteArgs = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_handledRouteArgs) return;
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map) {
+      _handleExternalActions(args);
+    }
+    _handledRouteArgs = true;
+  }
+
+  Future<void> _handleExternalActions(Map args) async {
+    // 1) Eliminar carpeta por nombre (disparado por el asistente de voz)
+    final deleteByName = (args['deleteFolderByName'] as String?)?.trim();
+    if (deleteByName != null && deleteByName.isNotEmpty) {
+      await _deleteFolderByName(deleteByName);
+    }
+
+    // Puedes agregar aquí otros casos si los usas:
+    // - Renombrar: {'folderRenamedFrom': 'Trabajo', 'folderRenamedTo': 'Clientes'}
+    // - Mover nota: {'folder': 'Mercado', 'movedNote': 'Compras'}
+  }
+
+  String _norm(String s) => s.toLowerCase().trim();
+
+  Future<void> _deleteFolderByName(String name) async {
+    final folder = await _findFolderByName(name);
+    if (folder == null) {
+      _showSnack('No encontré la carpeta "$name".');
+      return;
+    }
+    await _deleteFolderAndTrashNotes(folder);
+  }
+
+  // Busca con el stream existente (sin modificar el repositorio)
+  Future<FolderModel?> _findFolderByName(String name) async {
+    try {
+      final all = await _folderRepo.watch().first; // snapshot actual
+      FolderModel? target;
+      for (final f in all) {
+        // por si el nombre pudiera venir nulo:
+        final fname = (f.name ?? '').toString();
+        if (_norm(fname) == _norm(name)) {
+          target = f;
+          break;
+        }
+      }
+      return target; // puede ser null si no se encontró
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _showSnack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
   Future<void> _deleteFolderAndTrashNotes(FolderModel f) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -42,9 +104,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (confirmed != true) return;
     await _folderRepo.deleteAndSoftDeleteNotes(f.id);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Carpeta "${f.name}" eliminada')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Carpeta "${f.name}" eliminada')));
   }
 
   Future<void> _renameFolder(FolderModel f) async {
@@ -74,9 +136,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (ok == true && name.isNotEmpty) {
       await _folderRepo.rename(f.id, name);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Carpeta renombrada')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Carpeta renombrada')));
     }
   }
 
@@ -84,7 +146,9 @@ class _HomeScreenState extends State<HomeScreen> {
     await _folderRepo.setPinned(f.id, !f.pinned);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(f.pinned ? 'Carpeta desfijada' : 'Carpeta fijada')),
+      SnackBar(
+        content: Text(f.pinned ? 'Carpeta desfijada' : 'Carpeta fijada'),
+      ),
     );
   }
 
@@ -94,9 +158,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final safeBottom = MediaQuery.of(context).padding.bottom;
 
     // === NUEVO: Reserva de espacio para que el último ítem no quede tapado ===
-    const fabSize = 56.0;      // tamaño estándar del FAB
-    const gap = 28.0;          // separación vertical visual respecto al borde
-    final reservedBottom = safeBottom + fabSize + gap + 24.0; // 24 extra por sombra/holgura
+    const fabSize = 56.0; // tamaño estándar del FAB
+    const gap = 28.0; // separación vertical visual respecto al borde
+    final reservedBottom =
+        safeBottom + fabSize + gap + 24.0; // 24 extra por sombra/holgura
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
@@ -110,176 +175,178 @@ class _HomeScreenState extends State<HomeScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   sliver: SliverList(
-                    delegate: SliverChildListDelegate(
-                      [
-                        const SizedBox(height: 10),
+                    delegate: SliverChildListDelegate([
+                      const SizedBox(height: 10),
 
-                        // Header
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Expanded(
-                              child: Padding(
-                                padding: EdgeInsets.only(top: 36),
-                                child: Text(
-                                  'Inicio',
-                                  style: TextStyle(
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.bold,
-                                    fontFamily: 'SFProDisplay',
-                                  ),
-                                ),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () =>
-                                  setState(() => _editMode = !_editMode),
+                      // Header
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.only(top: 36),
                               child: Text(
-                                _editMode ? 'Listo' : '',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
+                                'Inicio',
+                                style: TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
                                   fontFamily: 'SFProDisplay',
-                                  color: Color(0xFFFFCC00),
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              icon: const Icon(Icons.menu),
-                              color: const Color(0xFFFFCC00),
-                              onPressed: () => setState(() => _editMode = true),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Buscador (tappable)
-                        GestureDetector(
-                          onTap: _editMode
-                              ? null
-                              : () =>
-                                  Navigator.pushNamed(context, '/search'),
-                          child: AbsorbPointer(
-                            absorbing: _editMode,
-                            child: Opacity(
-                              opacity: _editMode ? 0.4 : 1.0,
-                              child: Container(
-                                height: 44,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE5E5EA),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                alignment: Alignment.centerLeft,
-                                child: const TextField(
-                                  enabled: false,
-                                  decoration: InputDecoration(
-                                    hintText: 'Buscar',
-                                    hintStyle: TextStyle(
-                                      fontFamily: 'SFProDisplay',
-                                      fontSize: 16,
-                                    ),
-                                    border: InputBorder.none,
-                                    icon: Icon(Icons.search),
-                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Cantidad de carpetas
-                        StreamBuilder<List<FolderModel>>(
-                          stream: _folderRepo.watch(),
-                          builder: (context, snapF) {
-                            final n =
-                                (snapF.data ?? const <FolderModel>[]).length;
-                            return Text(
-                              '$n',
+                          TextButton(
+                            onPressed: () =>
+                                setState(() => _editMode = !_editMode),
+                            child: Text(
+                              _editMode ? 'Listo' : '',
                               style: const TextStyle(
                                 fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w500,
                                 fontFamily: 'SFProDisplay',
+                                color: Color(0xFFFFCC00),
                               ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 12),
+                            ),
+                          ),
+                          IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(Icons.menu),
+                            color: const Color(0xFFFFCC00),
+                            onPressed: () => setState(() => _editMode = true),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
 
-                        // Grupo Notas/Eliminados (con counts)
-                        StreamBuilder<List<Note>>(
-                          stream: _repo.watchNotes(includeDeleted: true),
-                          builder: (context, snap) {
-                            final all = snap.data ?? const <Note>[];
-                            final notesCount = all
-                                .where((n) =>
-                                    !n.isDeleted &&
-                                    (n.folderId == null ||
-                                        n.folderId!.isEmpty))
-                                .length;
-                            final deletedCount =
-                                all.where((n) => n.isDeleted).length;
-
-                            return Container(
+                      // Buscador (tappable)
+                      GestureDetector(
+                        onTap: _editMode
+                            ? null
+                            : () => Navigator.pushNamed(context, '/search'),
+                        child: AbsorbPointer(
+                          absorbing: _editMode,
+                          child: Opacity(
+                            opacity: _editMode ? 0.4 : 1.0,
+                            child: Container(
+                              height: 44,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: const Color(0xFFE5E5EA),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Column(
-                                children: [
-                                  FolderTile(
-                                    icon: Icons.folder_outlined,
-                                    label: 'Notas',
-                                    count: notesCount,
-                                    isTop: true,
-                                    isBottom: false,
-                                    isDisabled: _editMode,
+                              alignment: Alignment.centerLeft,
+                              child: const TextField(
+                                enabled: false,
+                                decoration: InputDecoration(
+                                  hintText: 'Buscar',
+                                  hintStyle: TextStyle(
+                                    fontFamily: 'SFProDisplay',
+                                    fontSize: 16,
                                   ),
-                                  const Divider(
-                                    height: 1,
-                                    thickness: 1,
-                                    color: Color(0xFFE5E5EA),
-                                  ),
-                                  FolderTile(
-                                    icon: Icons.delete_outline,
-                                    label: 'Eliminados',
-                                    count: deletedCount,
-                                    isTop: false,
-                                    isBottom: true,
-                                    isDisabled: _editMode,
-                                  ),
-                                ],
+                                  border: InputBorder.none,
+                                  icon: Icon(Icons.search),
+                                ),
                               ),
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 16),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 4),
-                          child: Text(
-                            'Carpetas',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 8),
-                      ],
-                    ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Cantidad de carpetas
+                      StreamBuilder<List<FolderModel>>(
+                        stream: _folderRepo.watch(),
+                        builder: (context, snapF) {
+                          final n =
+                              (snapF.data ?? const <FolderModel>[]).length;
+                          return Text(
+                            '$n',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: 'SFProDisplay',
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Grupo Notas/Eliminados (con counts)
+                      StreamBuilder<List<Note>>(
+                        stream: _repo.watchNotes(includeDeleted: true),
+                        builder: (context, snap) {
+                          final all = snap.data ?? const <Note>[];
+                          final notesCount = all
+                              .where(
+                                (n) =>
+                                    !n.isDeleted &&
+                                    (n.folderId == null || n.folderId!.isEmpty),
+                              )
+                              .length;
+                          final deletedCount = all
+                              .where((n) => n.isDeleted)
+                              .length;
+
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              children: [
+                                FolderTile(
+                                  icon: Icons.folder_outlined,
+                                  label: 'Notas',
+                                  count: notesCount,
+                                  isTop: true,
+                                  isBottom: false,
+                                  isDisabled: _editMode,
+                                ),
+                                const Divider(
+                                  height: 1,
+                                  thickness: 1,
+                                  color: Color(0xFFE5E5EA),
+                                ),
+                                FolderTile(
+                                  icon: Icons.delete_outline,
+                                  label: 'Eliminados',
+                                  count: deletedCount,
+                                  isTop: false,
+                                  isBottom: true,
+                                  isDisabled: _editMode,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 16),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(
+                          'Carpetas',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ]),
                   ),
                 ),
 
                 // Grupo de carpetas (stream) como sliver
                 SliverPadding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 0,
+                  ),
                   sliver: StreamBuilder<List<FolderModel>>(
                     stream: _folderRepo.watch(),
                     builder: (context, snapF) {
@@ -339,9 +406,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
 
                 // === NUEVO: Espacio final proporcional a los FABs + safe area
-                SliverToBoxAdapter(
-                  child: SizedBox(height: reservedBottom),
-                ),
+                SliverToBoxAdapter(child: SizedBox(height: reservedBottom)),
               ],
             ),
 
@@ -362,7 +427,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // === FAB centro -> crear carpeta
             Positioned(
-              bottom: (gap - 4) + safeBottom, // un pelín más bajo para el central
+              bottom:
+                  (gap - 4) + safeBottom, // un pelín más bajo para el central
               left: 0,
               right: 0,
               child: Center(
@@ -371,8 +437,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   backgroundColor: const Color(0xFFF2F2F7),
                   heroTag: 'folder',
                   onPressed: () async {
-                    final created =
-                        await Navigator.pushNamed(context, '/new-folder');
+                    final created = await Navigator.pushNamed(
+                      context,
+                      '/new-folder',
+                    );
                     if (created == true && mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Carpeta creada')),
@@ -482,13 +550,13 @@ class FolderTile extends StatelessWidget {
           onTap: isDisabled
               ? null
               : onTap ??
-                  () {
-                    if (label == 'Notas') {
-                      Navigator.pushNamed(context, '/notes');
-                    } else if (label == 'Eliminados') {
-                      Navigator.pushNamed(context, '/deleted');
-                    }
-                  },
+                    () {
+                      if (label == 'Notas') {
+                        Navigator.pushNamed(context, '/notes');
+                      } else if (label == 'Eliminados') {
+                        Navigator.pushNamed(context, '/deleted');
+                      }
+                    },
         ),
       ),
     );
@@ -523,10 +591,10 @@ class _FolderRow extends StatelessWidget {
     final borderRadius = isFirst && isLast
         ? BorderRadius.circular(12)
         : isFirst
-            ? const BorderRadius.vertical(top: Radius.circular(12))
-            : isLast
-                ? const BorderRadius.vertical(bottom: Radius.circular(12))
-                : BorderRadius.zero;
+        ? const BorderRadius.vertical(top: Radius.circular(12))
+        : isLast
+        ? const BorderRadius.vertical(bottom: Radius.circular(12))
+        : BorderRadius.zero;
 
     return ClipRRect(
       borderRadius: borderRadius,
@@ -536,8 +604,10 @@ class _FolderRow extends StatelessWidget {
           final count = snapCount.data ?? 0;
           return ListTile(
             tileColor: Colors.white,
-            leading:
-                const Icon(Icons.folder_outlined, color: Color(0xFFFFCC00)),
+            leading: const Icon(
+              Icons.folder_outlined,
+              color: Color(0xFFFFCC00),
+            ),
             title: Text(
               folder.name,
               style: const TextStyle(
