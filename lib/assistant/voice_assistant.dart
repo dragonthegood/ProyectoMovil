@@ -141,16 +141,16 @@ class VoiceAssistant {
     await init();
     _session.clear();
     prompt.value =
-        'Hola 👋 Soy tu asistente. Toca “Hablar” y dime qué hacer.\n'
-        'Notas: "crear nota compras que diga pan", "abrir nota compras", "editar nota compras", '
-        '"eliminar nota compras", "restaurar nota compras", "buscar recetas".\n'
-        'Carpetas: "crear carpeta trabajo", "abrir carpeta clientes", '
-        '"renombra la carpeta trabajo a clientes", "eliminar carpeta trabajo".\n'
-        'Dentro/entre carpetas: "crear nota lista en la carpeta mercado que diga leche", '
-        '"mover la nota compras a la carpeta mercado", "mover la nota compras a ninguna carpeta".\n'
-        'Listados/navegación: "listar carpetas", "listar notas", "listar notas de la carpeta mercado", '
-        '"ver eliminados". Papelera (UI): "vaciar eliminados", "restaurar todo".\n'
-        'Voz: "leer la nota compras", "detener lectura". Preferencias: "activar confirmaciones", "desactivar confirmaciones".';
+        'Hola 👋 Soy tu asistente. Toca “Hablar” y dime qué hacer.\n';
+        // 'Notas: "crear nota compras que diga pan", "abrir nota compras", "editar nota compras", '
+        // '"eliminar nota compras", "restaurar nota compras", "buscar recetas".\n'
+        // 'Carpetas: "crear carpeta trabajo", "abrir carpeta clientes", '
+        // '"renombra la carpeta trabajo a clientes", "eliminar carpeta trabajo".\n'
+        // 'Dentro/entre carpetas: "crear nota lista en la carpeta mercado que diga leche", '
+        // '"mover la nota compras a la carpeta mercado", "mover la nota compras a ninguna carpeta".\n'
+        // 'Listados/navegación: "listar carpetas", "listar notas", "listar notas de la carpeta mercado", '
+        // '"ver eliminados". Papelera (UI): "vaciar eliminados", "restaurar todo".\n'
+        // 'Voz: "leer la nota compras", "detener lectura". Preferencias: "activar confirmaciones", "desactivar confirmaciones".';
 
     _startIdleTimer(context);
 

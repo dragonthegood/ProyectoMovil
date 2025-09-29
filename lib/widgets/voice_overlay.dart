@@ -45,7 +45,7 @@ class _VoiceOverlayState extends State<VoiceOverlay>
   Widget build(BuildContext context) {
     final a = widget.assistant;
     final size = MediaQuery.of(context).size;
-    final maxH = (size.height * 0.8).clamp(0.0, 640.0); // altura máx. segura
+    final maxH = (size.height * 0.8).clamp(0.0, 400.0); // altura máx. segura
 
     return SafeArea(
       child: Dialog(

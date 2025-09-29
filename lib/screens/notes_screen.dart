@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/models/note.dart';
 import '../data/repositories/note_repository.dart';
+import '../assistant/voice_assistant.dart';
 
 class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});
@@ -44,8 +45,11 @@ class _NotesScreenState extends State<NotesScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: const [
-                        Icon(Icons.arrow_back_ios_new_rounded,
-                            color: Color(0xFFFFCC00), size: 20),
+                        Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Color(0xFFFFCC00),
+                          size: 20,
+                        ),
                         SizedBox(width: 4),
                         Text(
                           'Inicio',
@@ -183,8 +187,9 @@ class _NotesScreenState extends State<NotesScreen> {
                                 children: [
                                   if (_editMode) ...[
                                     IconButton(
-                                      tooltip:
-                                          n.pinned ? 'Quitar anclado' : 'Anclar',
+                                      tooltip: n.pinned
+                                          ? 'Quitar anclado'
+                                          : 'Anclar',
                                       icon: Icon(
                                         n.pinned
                                             ? Icons.push_pin
@@ -196,13 +201,18 @@ class _NotesScreenState extends State<NotesScreen> {
                                     ),
                                     IconButton(
                                       tooltip: 'Eliminar',
-                                      icon: const Icon(Icons.delete,
-                                          color: Colors.red),
+                                      icon: const Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                      ),
                                       onPressed: () => _repo.softDelete(n.id),
                                     ),
                                   ] else
-                                    const Icon(Icons.arrow_forward_ios_rounded,
-                                        size: 14, color: Color(0xFF8C8C8C)),
+                                    const Icon(
+                                      Icons.arrow_forward_ios_rounded,
+                                      size: 14,
+                                      color: Color(0xFF8C8C8C),
+                                    ),
                                 ],
                               ),
                               onTap: _editMode
@@ -228,15 +238,21 @@ class _NotesScreenState extends State<NotesScreen> {
             SafeArea(
               top: false,
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
-                      onPressed: () {},
-                      icon: const Icon(Icons.mic_none,
-                          color: Color(0xFFFFCC00)),
+                      onPressed: () async {
+                        await VoiceAssistant.I.openOverlay(context);
+                      },
+                      icon: const Icon(
+                        Icons.mic_none,
+                        color: Color(0xFFFFCC00),
+                      ),
                     ),
                     StreamBuilder<List<Note>>(
                       stream: _repo.watchByFolder(folderId: null),
@@ -244,7 +260,9 @@ class _NotesScreenState extends State<NotesScreen> {
                         final total = (snap.data ?? const <Note>[]).length;
                         return Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFE5E5EA),
                             borderRadius: BorderRadius.circular(20),
@@ -263,8 +281,10 @@ class _NotesScreenState extends State<NotesScreen> {
                       onPressed: () {
                         Navigator.pushNamed(context, '/new-note');
                       },
-                      icon: const Icon(Icons.note_add_outlined,
-                          color: Color(0xFFFFCC00)),
+                      icon: const Icon(
+                        Icons.note_add_outlined,
+                        color: Color(0xFFFFCC00),
+                      ),
                     ),
                   ],
                 ),
