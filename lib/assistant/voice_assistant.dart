@@ -118,7 +118,7 @@ class VoiceAssistant {
     _available = await _stt.initialize();
 
     await _tts.setLanguage('es-ES');
-    await _tts.setSpeechRate(0.71);
+    await _tts.setSpeechRate(0.9);
     await _tts.awaitSpeakCompletion(true);
   }
 
@@ -210,7 +210,7 @@ class VoiceAssistant {
     liveText.value = '';
 
     _cancelListenTimer();
-    _autoCloseTimer = Timer(const Duration(seconds: 120), () async {
+    _autoCloseTimer = Timer(const Duration(seconds: 60), () async {
       if (!isListening.value) return;
       isListening.value = false;
       try {
@@ -224,8 +224,8 @@ class VoiceAssistant {
     await _stt.listen(
       localeId: 'es_ES',
       listenMode: stt.ListenMode.dictation,
-      listenFor: const Duration(seconds: 120),
-      pauseFor: const Duration(seconds: 30),
+      listenFor: const Duration(seconds: 60),
+      pauseFor: const Duration(seconds: 2),
       onResult: (r) async {
         liveText.value = r.recognizedWords;
         if (!r.finalResult) return;

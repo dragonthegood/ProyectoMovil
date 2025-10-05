@@ -1,6 +1,6 @@
 {
-    "name": "proyectomovil",
-    "short_name": "proyectomovil",
+    "name": "BlocNotes",
+    "short_name": "BlocNotes",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
