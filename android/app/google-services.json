@@ -12,7 +12,20 @@
           "package_name": "com.example.proyectomovil"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "815269820749-iroel0qar7jup2ulmpemee0s0nhae3af.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.proyectomovil",
+            "certificate_hash": "c2f0a3ad5e3974fd15699c3a19594d92aa98084a"
+          }
+        },
+        {
+          "client_id": "815269820749-k3antvv4n7d0kkcn7qalgdjbtfssd2av.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBTJ76gtxXvMeGFS1G6b_qWgusjUyHGX9A"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "815269820749-k3antvv4n7d0kkcn7qalgdjbtfssd2av.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "815269820749-gg3mipt4illpv6othduk1923tmnji0e2.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.proyectomovil"
+              }
+            }
+          ]
         }
       }
     },
@@ -31,7 +56,12 @@
           "package_name": "com.tuempresa.proyectomovil"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "815269820749-k3antvv4n7d0kkcn7qalgdjbtfssd2av.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBTJ76gtxXvMeGFS1G6b_qWgusjUyHGX9A"
@@ -39,7 +69,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "815269820749-k3antvv4n7d0kkcn7qalgdjbtfssd2av.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "815269820749-gg3mipt4illpv6othduk1923tmnji0e2.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.proyectomovil"
+              }
+            }
+          ]
         }
       }
     }

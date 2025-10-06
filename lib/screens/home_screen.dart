@@ -206,7 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                           const Expanded(
                             child: Padding(
-                              padding: EdgeInsets.only(top: 36),
+                              padding: EdgeInsets.only(top: 56),
                               child: Text(
                                 'Inicio',
                                 style: TextStyle(
