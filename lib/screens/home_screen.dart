@@ -113,8 +113,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (confirmed != true) return;
     await _folderRepo.deleteAndSoftDeleteNotes(f.id);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('Carpeta "${f.name}" eliminada')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Carpeta "${f.name}" eliminada')));
   }
 
   Future<void> _renameFolder(FolderModel f) async {
@@ -144,8 +145,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (ok == true && name.isNotEmpty) {
       await _folderRepo.rename(f.id, name);
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Carpeta renombrada')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Carpeta renombrada')));
     }
   }
 
@@ -193,7 +195,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       // ======= HEADER =======
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           // 👉 ICONO DE USUARIO (IZQUIERDA)
                           IconButton(
@@ -202,39 +205,41 @@ class _HomeScreenState extends State<HomeScreen> {
                             icon: const Icon(Icons.person_outline),
                             color: const Color(0xFFFFCC00),
                           ),
-                          const SizedBox(width: 6),
 
-                          const Expanded(
-                            child: Padding(
-                              padding: EdgeInsets.only(top: 56),
-                              child: Text(
-                                'Inicio',
-                                style: TextStyle(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
-                                  fontFamily: 'SFProDisplay',
+                          // 👉 TÍTULO ALINEADO A LA IZQUIERDA
+                          const Text(
+                            'Inicio',
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'SFProDisplay',
+                            ),
+                          ),
+
+                          // 👉 ACCIONES (MENÚ Y "LISTO")
+                          Row(
+                            children: [
+                              if (_editMode)
+                                TextButton(
+                                  onPressed: () => _setEditMode(!_editMode),
+                                  child: const Text(
+                                    'Listo',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      fontFamily: 'SFProDisplay',
+                                      color: Color(0xFFFFCC00),
+                                    ),
+                                  ),
                                 ),
+                              IconButton(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                icon: const Icon(Icons.menu),
+                                color: const Color(0xFFFFCC00),
+                                onPressed: () => _setEditMode(true),
                               ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => _setEditMode(!_editMode),
-                            child: Text(
-                              _editMode ? 'Listo' : '',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                fontFamily: 'SFProDisplay',
-                                color: Color(0xFFFFCC00),
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            icon: const Icon(Icons.menu),
-                            color: const Color(0xFFFFCC00),
-                            onPressed: () => _setEditMode(true),
+                            ],
                           ),
                         ],
                       ),
@@ -251,8 +256,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             opacity: _editMode ? 0.4 : 1.0,
                             child: Container(
                               height: 44,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFE5E5EA),
                                 borderRadius: BorderRadius.circular(12),
@@ -301,12 +307,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         builder: (context, snap) {
                           final all = snap.data ?? const <Note>[];
                           final notesCount = all
-                              .where((n) =>
-                                  !n.isDeleted &&
-                                  (n.folderId == null || n.folderId!.isEmpty))
+                              .where(
+                                (n) =>
+                                    !n.isDeleted &&
+                                    (n.folderId == null || n.folderId!.isEmpty),
+                              )
                               .length;
-                          final deletedCount =
-                              all.where((n) => n.isDeleted).length;
+                          final deletedCount = all
+                              .where((n) => n.isDeleted)
+                              .length;
 
                           return Container(
                             decoration: BoxDecoration(
@@ -360,8 +369,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 // Grupo de carpetas
                 SliverPadding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 0,
+                  ),
                   sliver: StreamBuilder<List<FolderModel>>(
                     stream: _folderRepo.watch(),
                     builder: (context, snapF) {
@@ -451,8 +462,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   backgroundColor: const Color(0xFFF2F2F7),
                   heroTag: 'folder',
                   onPressed: () async {
-                    final created =
-                        await Navigator.pushNamed(context, '/new-folder');
+                    final created = await Navigator.pushNamed(
+                      context,
+                      '/new-folder',
+                    );
                     if (created == true && mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Carpeta creada')),
@@ -517,11 +530,9 @@ class FolderTile extends StatelessWidget {
     if (isTop && isBottom) {
       borderRadius = BorderRadius.circular(12);
     } else if (isTop) {
-      borderRadius =
-          const BorderRadius.vertical(top: Radius.circular(12));
+      borderRadius = const BorderRadius.vertical(top: Radius.circular(12));
     } else if (isBottom) {
-      borderRadius =
-          const BorderRadius.vertical(bottom: Radius.circular(12));
+      borderRadius = const BorderRadius.vertical(bottom: Radius.circular(12));
     }
 
     return ClipRRect(
@@ -564,13 +575,13 @@ class FolderTile extends StatelessWidget {
           onTap: isDisabled
               ? null
               : onTap ??
-                  () {
-                    if (label == 'Notas') {
-                      Navigator.pushNamed(context, '/notes');
-                    } else if (label == 'Eliminados') {
-                      Navigator.pushNamed(context, '/deleted');
-                    }
-                  },
+                    () {
+                      if (label == 'Notas') {
+                        Navigator.pushNamed(context, '/notes');
+                      } else if (label == 'Eliminados') {
+                        Navigator.pushNamed(context, '/deleted');
+                      }
+                    },
         ),
       ),
     );
@@ -605,10 +616,10 @@ class _FolderRow extends StatelessWidget {
     final borderRadius = isFirst && isLast
         ? BorderRadius.circular(12)
         : isFirst
-            ? const BorderRadius.vertical(top: Radius.circular(12))
-            : isLast
-                ? const BorderRadius.vertical(bottom: Radius.circular(12))
-                : BorderRadius.zero;
+        ? const BorderRadius.vertical(top: Radius.circular(12))
+        : isLast
+        ? const BorderRadius.vertical(bottom: Radius.circular(12))
+        : BorderRadius.zero;
 
     return ClipRRect(
       borderRadius: borderRadius,
