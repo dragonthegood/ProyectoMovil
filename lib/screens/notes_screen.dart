@@ -30,6 +30,7 @@ class _NotesScreenState extends State<NotesScreen> {
     final last = PreferencesService().lastSearchQuery ?? '';
     _query = last;
     _searchCtrl.text = last;
+   
   }
 
   @override
@@ -166,8 +167,9 @@ class _NotesScreenState extends State<NotesScreen> {
                   onChanged: (v) {
                     setState(() => _query = v);
                     // Guardar/limpiar preferencia según contenido
-                    PreferencesService()
-                        .setLastSearchQuery(v.trim().isEmpty ? null : v);
+                    PreferencesService().setLastSearchQuery(
+                      v.trim().isEmpty ? null : v,
+                    );
                   },
                 ),
               ),
@@ -198,10 +200,9 @@ class _NotesScreenState extends State<NotesScreen> {
                     final notes = snap.data ?? const <Note>[];
 
                     // Aplica filtro por búsqueda
-                    final filtered = notes
-                        .where((n) => _matches(n, _query))
-                        .toList()
-                      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+                    final filtered =
+                        notes.where((n) => _matches(n, _query)).toList()
+                          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
                     if (filtered.isEmpty) {
                       return Center(
@@ -254,8 +255,9 @@ class _NotesScreenState extends State<NotesScreen> {
                                 children: [
                                   if (_editMode) ...[
                                     IconButton(
-                                      tooltip:
-                                          n.pinned ? 'Quitar anclado' : 'Anclar',
+                                      tooltip: n.pinned
+                                          ? 'Quitar anclado'
+                                          : 'Anclar',
                                       icon: Icon(
                                         n.pinned
                                             ? Icons.push_pin

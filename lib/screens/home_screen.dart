@@ -7,6 +7,8 @@ import '../data/repositories/folder_repository.dart';
 
 // NUEVO: prefs singleton
 import '../data/local/preferences_service.dart';
+import '../widgets/account_sheet.dart';
+import '../services/auth_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,6 +30,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     // NUEVO: cargar modo edición desde SharedPreferences
     _editMode = PreferencesService().editMode;
+    // Garantizamos que hay usuario, aunque sea anónimo.
+    AuthService.I.ensureSignedInAnonymously();
   }
 
   @override
@@ -48,10 +52,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (deleteByName != null && deleteByName.isNotEmpty) {
       await _deleteFolderByName(deleteByName);
     }
-
-    // Puedes agregar aquí otros casos si los usas:
-    // - Renombrar: {'folderRenamedFrom': 'Trabajo', 'folderRenamedTo': 'Clientes'}
-    // - Mover nota: {'folder': 'Mercado', 'movedNote': 'Compras'}
   }
 
   String _norm(String s) => s.toLowerCase().trim();
@@ -71,14 +71,13 @@ class _HomeScreenState extends State<HomeScreen> {
       final all = await _folderRepo.watch().first; // snapshot actual
       FolderModel? target;
       for (final f in all) {
-        // por si el nombre pudiera venir nulo:
         final fname = (f.name ?? '').toString();
         if (_norm(fname) == _norm(name)) {
           target = f;
           break;
         }
       }
-      return target; // puede ser null si no se encontró
+      return target;
     } catch (_) {
       return null;
     }
@@ -114,9 +113,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (confirmed != true) return;
     await _folderRepo.deleteAndSoftDeleteNotes(f.id);
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Carpeta "${f.name}" eliminada')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('Carpeta "${f.name}" eliminada')));
   }
 
   Future<void> _renameFolder(FolderModel f) async {
@@ -146,9 +144,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (ok == true && name.isNotEmpty) {
       await _folderRepo.rename(f.id, name);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Carpeta renombrada')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Carpeta renombrada')));
     }
   }
 
@@ -187,17 +184,26 @@ class _HomeScreenState extends State<HomeScreen> {
             // === SCROLL ÚNICO ===
             CustomScrollView(
               slivers: [
-                // PADDING LATERAL para todo el contenido
+                // PADDING LATERAL
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       const SizedBox(height: 10),
 
-                      // Header
+                      // ======= HEADER =======
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // 👉 ICONO DE USUARIO (IZQUIERDA)
+                          IconButton(
+                            tooltip: 'Cuenta',
+                            onPressed: () => showAccountSheet(context),
+                            icon: const Icon(Icons.person_outline),
+                            color: const Color(0xFFFFCC00),
+                          ),
+                          const SizedBox(width: 6),
+
                           const Expanded(
                             child: Padding(
                               padding: EdgeInsets.only(top: 36),
@@ -245,9 +251,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             opacity: _editMode ? 0.4 : 1.0,
                             child: Container(
                               height: 44,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFE5E5EA),
                                 borderRadius: BorderRadius.circular(12),
@@ -296,15 +301,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         builder: (context, snap) {
                           final all = snap.data ?? const <Note>[];
                           final notesCount = all
-                              .where(
-                                (n) =>
-                                    !n.isDeleted &&
-                                    (n.folderId == null || n.folderId!.isEmpty),
-                              )
+                              .where((n) =>
+                                  !n.isDeleted &&
+                                  (n.folderId == null || n.folderId!.isEmpty))
                               .length;
-                          final deletedCount = all
-                              .where((n) => n.isDeleted)
-                              .length;
+                          final deletedCount =
+                              all.where((n) => n.isDeleted).length;
 
                           return Container(
                             decoration: BoxDecoration(
@@ -356,12 +358,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-                // Grupo de carpetas (stream) como sliver
+                // Grupo de carpetas
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 0,
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
                   sliver: StreamBuilder<List<FolderModel>>(
                     stream: _folderRepo.watch(),
                     builder: (context, snapF) {
@@ -420,7 +420,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-                // === NUEVO: Espacio final proporcional a los FABs + safe area
+                // === ESPACIO final proporcional a FABs + safe area
                 SliverToBoxAdapter(child: SizedBox(height: reservedBottom)),
               ],
             ),
@@ -442,8 +442,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // === FAB centro -> crear carpeta
             Positioned(
-              bottom:
-                  (gap - 4) + safeBottom, // un pelín más bajo para el central
+              bottom: (gap - 4) + safeBottom,
               left: 0,
               right: 0,
               child: Center(
@@ -452,10 +451,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   backgroundColor: const Color(0xFFF2F2F7),
                   heroTag: 'folder',
                   onPressed: () async {
-                    final created = await Navigator.pushNamed(
-                      context,
-                      '/new-folder',
-                    );
+                    final created =
+                        await Navigator.pushNamed(context, '/new-folder');
                     if (created == true && mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Carpeta creada')),
@@ -520,9 +517,11 @@ class FolderTile extends StatelessWidget {
     if (isTop && isBottom) {
       borderRadius = BorderRadius.circular(12);
     } else if (isTop) {
-      borderRadius = const BorderRadius.vertical(top: Radius.circular(12));
+      borderRadius =
+          const BorderRadius.vertical(top: Radius.circular(12));
     } else if (isBottom) {
-      borderRadius = const BorderRadius.vertical(bottom: Radius.circular(12));
+      borderRadius =
+          const BorderRadius.vertical(bottom: Radius.circular(12));
     }
 
     return ClipRRect(
