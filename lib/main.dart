@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
+import 'data/local/preferences_service.dart';
 
 import 'screens/home_screen.dart';
 import 'screens/folder_notes_screen.dart';
@@ -13,7 +14,7 @@ import 'screens/deleted_note_detail_screen.dart';
 import 'screens/new_note_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/edit_note_screen.dart';
-import 'screens/draw_screen.dart'; 
+import 'screens/draw_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +23,9 @@ Future<void> main() async {
   if (FirebaseAuth.instance.currentUser == null) {
     await FirebaseAuth.instance.signInAnonymously();
   }
+  // SharedPreferences (singleton)
+  await PreferencesService().init();
+
   runApp(const MyApp());
 }
 
@@ -50,10 +54,11 @@ class MyApp extends StatelessWidget {
         '/search': (context) => const SearchScreen(),
         '/new-folder': (_) => const NewFolderScreen(),
         '/folder-notes': (ctx) {
-          final args = ModalRoute.of(ctx)!.settings.arguments as Map;
+          final args =
+              ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
           return FolderNotesScreen(
-            folderId: args['id'],
-            folderName: args['name'],
+            folderId: args['id'] as String,
+            folderName: args['name'] as String,
           );
         },
       },

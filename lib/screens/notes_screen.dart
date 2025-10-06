@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../data/models/note.dart';
 import '../data/repositories/note_repository.dart';
 import '../assistant/voice_assistant.dart';
+import '../data/local/preferences_service.dart';
+// NUEVO: helper para compartir
+import '../utils/share_helper.dart';
 
 class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});
@@ -13,17 +16,39 @@ class NotesScreen extends StatefulWidget {
 class _NotesScreenState extends State<NotesScreen> {
   final _repo = NoteRepository();
   final _scroll = ScrollController();
+
+  // 🔎 Estado de búsqueda
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _query = '';
+
   bool _editMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Cargar última búsqueda guardada (opcional)
+    final last = PreferencesService().lastSearchQuery ?? '';
+    _query = last;
+    _searchCtrl.text = last;
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   String _fmtDate(DateTime d) {
     String two(int x) => x.toString().padLeft(2, '0');
     return "${two(d.day)}/${two(d.month)}/${d.year}";
   }
 
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
+  bool _matches(Note n, String q) {
+    if (q.isEmpty) return true;
+    final qq = q.toLowerCase().trim();
+    return n.title.toLowerCase().contains(qq) ||
+        n.content.toLowerCase().contains(qq);
   }
 
   @override
@@ -100,6 +125,8 @@ class _NotesScreenState extends State<NotesScreen> {
               ),
             ),
             const SizedBox(height: 12),
+
+            // 🔎 Buscador ACTIVO (filtra en vivo)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
@@ -110,20 +137,42 @@ class _NotesScreenState extends State<NotesScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.centerLeft,
-                child: const TextField(
-                  enabled: false,
+                child: TextField(
+                  controller: _searchCtrl,
+                  enabled: true,
                   decoration: InputDecoration(
                     hintText: 'Buscar',
-                    hintStyle: TextStyle(
+                    hintStyle: const TextStyle(
                       fontFamily: 'SFProDisplay',
                       fontSize: 16,
                     ),
                     border: InputBorder.none,
-                    icon: Icon(Icons.search),
+                    icon: const Icon(Icons.search),
+                    // Limpia rápidamente la búsqueda
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Limpiar',
+                            icon: const Icon(Icons.close),
+                            onPressed: () {
+                              setState(() {
+                                _query = '';
+                                _searchCtrl.clear();
+                              });
+                              PreferencesService().setLastSearchQuery(null);
+                            },
+                          ),
                   ),
+                  onChanged: (v) {
+                    setState(() => _query = v);
+                    // Guardar/limpiar preferencia según contenido
+                    PreferencesService()
+                        .setLastSearchQuery(v.trim().isEmpty ? null : v);
+                  },
                 ),
               ),
             ),
+
             const SizedBox(height: 16),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
@@ -143,13 +192,31 @@ class _NotesScreenState extends State<NotesScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: StreamBuilder<List<Note>>(
-                  // solo raíz
+                  // solo raíz (notas sin carpeta)
                   stream: _repo.watchByFolder(folderId: null),
                   builder: (context, snap) {
                     final notes = snap.data ?? const <Note>[];
-                    if (notes.isEmpty) {
-                      return const Center(child: Text('Sin notas'));
+
+                    // Aplica filtro por búsqueda
+                    final filtered = notes
+                        .where((n) => _matches(n, _query))
+                        .toList()
+                      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+                    if (filtered.isEmpty) {
+                      return Center(
+                        child: Text(
+                          _query.isEmpty
+                              ? 'Sin notas'
+                              : 'Sin resultados para "$_query".',
+                          style: const TextStyle(
+                            fontFamily: 'SFProDisplay',
+                            color: Color(0xFF999999),
+                          ),
+                        ),
+                      );
                     }
+
                     return Scrollbar(
                       controller: _scroll,
                       interactive: true,
@@ -157,10 +224,10 @@ class _NotesScreenState extends State<NotesScreen> {
                         controller: _scroll,
                         physics: const BouncingScrollPhysics(),
                         padding: const EdgeInsets.only(bottom: 8),
-                        itemCount: notes.length,
+                        itemCount: filtered.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (_, i) {
-                          final n = notes[i];
+                          final n = filtered[i];
                           return Material(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
@@ -187,9 +254,8 @@ class _NotesScreenState extends State<NotesScreen> {
                                 children: [
                                   if (_editMode) ...[
                                     IconButton(
-                                      tooltip: n.pinned
-                                          ? 'Quitar anclado'
-                                          : 'Anclar',
+                                      tooltip:
+                                          n.pinned ? 'Quitar anclado' : 'Anclar',
                                       icon: Icon(
                                         n.pinned
                                             ? Icons.push_pin
@@ -198,6 +264,17 @@ class _NotesScreenState extends State<NotesScreen> {
                                       ),
                                       onPressed: () =>
                                           _repo.setPinned(n.id, !n.pinned),
+                                    ),
+                                    // NUEVO: compartir
+                                    IconButton(
+                                      tooltip: 'Compartir nota',
+                                      icon: const Icon(
+                                        Icons.share_outlined,
+                                        color: Colors.blueGrey,
+                                      ),
+                                      onPressed: () async {
+                                        await ShareHelper.shareNote(n);
+                                      },
                                     ),
                                     IconButton(
                                       tooltip: 'Eliminar',

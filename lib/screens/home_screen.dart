@@ -5,6 +5,9 @@ import '../assistant/voice_assistant.dart';
 import '../data/models/folder.dart';
 import '../data/repositories/folder_repository.dart';
 
+// NUEVO: prefs singleton
+import '../data/local/preferences_service.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -19,6 +22,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ===== NUEVO: manejar args entrantes desde el asistente (una sola vez) =====
   bool _handledRouteArgs = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // NUEVO: cargar modo edición desde SharedPreferences
+    _editMode = PreferencesService().editMode;
+  }
 
   @override
   void didChangeDependencies() {
@@ -152,6 +162,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // NUEVO: helper para sincronizar UI + SharedPreferences
+  void _setEditMode(bool value) {
+    setState(() => _editMode = value);
+    PreferencesService().setEditMode(value);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Safe area inferior (gestures / notch)
@@ -196,8 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           TextButton(
-                            onPressed: () =>
-                                setState(() => _editMode = !_editMode),
+                            onPressed: () => _setEditMode(!_editMode),
                             child: Text(
                               _editMode ? 'Listo' : '',
                               style: const TextStyle(
@@ -213,7 +228,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             constraints: const BoxConstraints(),
                             icon: const Icon(Icons.menu),
                             color: const Color(0xFFFFCC00),
-                            onPressed: () => setState(() => _editMode = true),
+                            onPressed: () => _setEditMode(true),
                           ),
                         ],
                       ),
@@ -550,13 +565,13 @@ class FolderTile extends StatelessWidget {
           onTap: isDisabled
               ? null
               : onTap ??
-                    () {
-                      if (label == 'Notas') {
-                        Navigator.pushNamed(context, '/notes');
-                      } else if (label == 'Eliminados') {
-                        Navigator.pushNamed(context, '/deleted');
-                      }
-                    },
+                  () {
+                    if (label == 'Notas') {
+                      Navigator.pushNamed(context, '/notes');
+                    } else if (label == 'Eliminados') {
+                      Navigator.pushNamed(context, '/deleted');
+                    }
+                  },
         ),
       ),
     );
@@ -591,10 +606,10 @@ class _FolderRow extends StatelessWidget {
     final borderRadius = isFirst && isLast
         ? BorderRadius.circular(12)
         : isFirst
-        ? const BorderRadius.vertical(top: Radius.circular(12))
-        : isLast
-        ? const BorderRadius.vertical(bottom: Radius.circular(12))
-        : BorderRadius.zero;
+            ? const BorderRadius.vertical(top: Radius.circular(12))
+            : isLast
+                ? const BorderRadius.vertical(bottom: Radius.circular(12))
+                : BorderRadius.zero;
 
     return ClipRRect(
       borderRadius: borderRadius,
