@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../data/models/note.dart';
-import '../data/repositories/note_repository.dart';
-import '../assistant/voice_assistant.dart';
+import 'package:proyectomovil/features/notes/domain/models/note.dart';
+import 'package:proyectomovil/features/notes/infrastructure/repositories/note_repository.dart';
+import 'package:proyectomovil/features/notes/application/voice_assistant.dart';
 
 class DeletedScreen extends StatefulWidget {
   const DeletedScreen({super.key});

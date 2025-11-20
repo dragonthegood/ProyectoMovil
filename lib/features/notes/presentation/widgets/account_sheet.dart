@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/auth_service.dart';
+import 'package:proyectomovil/core/infrastructure/auth/auth_service.dart';
 
 Future<void> showAccountSheet(BuildContext context) async {
   final auth = AuthService.I;

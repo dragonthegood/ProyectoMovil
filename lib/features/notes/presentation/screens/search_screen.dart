@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../data/models/note.dart';
-import '../data/repositories/note_repository.dart';
-import '../data/local/preferences_service.dart';
+import 'package:proyectomovil/features/notes/domain/models/note.dart';
+import 'package:proyectomovil/features/notes/infrastructure/repositories/note_repository.dart';
+import 'package:proyectomovil/core/infrastructure/local/preferences_service.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});

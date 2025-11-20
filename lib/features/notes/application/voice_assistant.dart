@@ -2,9 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
-import '../data/repositories/note_repository.dart';
-import '../widgets/voice_overlay.dart';
-import '../data/repositories/folder_repository.dart';
+import 'package:proyectomovil/features/notes/infrastructure/repositories/note_repository.dart';
+import 'package:proyectomovil/features/notes/infrastructure/repositories/folder_repository.dart';
+import 'package:proyectomovil/features/notes/presentation/widgets/voice_overlay.dart';
 
 /// Intenciones soportadas
 enum _Intent {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import '../data/models/note.dart';
-import '../data/repositories/note_repository.dart';
+import 'package:proyectomovil/features/notes/domain/models/note.dart';
+import 'package:proyectomovil/features/notes/infrastructure/repositories/note_repository.dart';
 
 class EditNoteScreen extends StatefulWidget {
   const EditNoteScreen({super.key});

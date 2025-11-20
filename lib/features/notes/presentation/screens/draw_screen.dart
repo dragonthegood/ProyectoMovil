@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
-import '../data/repositories/note_repository.dart';
+import 'package:proyectomovil/features/notes/infrastructure/repositories/note_repository.dart';
 
 class DrawScreen extends StatefulWidget {
   const DrawScreen({super.key});

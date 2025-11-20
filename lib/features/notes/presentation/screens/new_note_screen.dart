@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../data/models/note.dart';
-import '../data/repositories/note_repository.dart';
+import 'package:proyectomovil/features/notes/domain/models/note.dart';
+import 'package:proyectomovil/features/notes/infrastructure/repositories/note_repository.dart';
 
 class NewNoteScreen extends StatefulWidget {
   const NewNoteScreen({super.key});

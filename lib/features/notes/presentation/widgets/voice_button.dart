@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../assistant/voice_assistant.dart';
+import 'package:proyectomovil/features/notes/application/voice_assistant.dart';
 
 /// Mic flotante centrado, no interfiere con tus otros FAB.
 class VoiceButton extends StatelessWidget {

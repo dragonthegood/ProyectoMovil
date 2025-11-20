@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'firebase_options.dart';
-import 'data/local/preferences_service.dart';
 
-import 'screens/home_screen.dart';
-import 'screens/folder_notes_screen.dart';
-import 'screens/new_folder_screen.dart';
-import 'screens/notes_screen.dart';
-import 'screens/deleted_screen.dart';
-import 'screens/note_detail_screen.dart';
-import 'screens/deleted_note_detail_screen.dart';
-import 'screens/new_note_screen.dart';
-import 'screens/search_screen.dart';
-import 'screens/edit_note_screen.dart';
-import 'screens/draw_screen.dart';
+import 'package:proyectomovil/core/config/firebase_options.dart';
+import 'package:proyectomovil/core/infrastructure/local/preferences_service.dart';
+
+import 'package:proyectomovil/features/notes/presentation/screens/home_screen.dart';
+import 'package:proyectomovil/features/notes/presentation/screens/folder_notes_screen.dart';
+import 'package:proyectomovil/features/notes/presentation/screens/new_folder_screen.dart';
+import 'package:proyectomovil/features/notes/presentation/screens/notes_screen.dart';
+import 'package:proyectomovil/features/notes/presentation/screens/deleted_screen.dart';
+import 'package:proyectomovil/features/notes/presentation/screens/note_detail_screen.dart';
+import 'package:proyectomovil/features/notes/presentation/screens/deleted_note_detail_screen.dart';
+import 'package:proyectomovil/features/notes/presentation/screens/new_note_screen.dart';
+import 'package:proyectomovil/features/notes/presentation/screens/search_screen.dart';
+import 'package:proyectomovil/features/notes/presentation/screens/edit_note_screen.dart';
+import 'package:proyectomovil/features/notes/presentation/screens/draw_screen.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

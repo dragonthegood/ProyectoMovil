@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../data/models/note.dart';
-import '../data/repositories/note_repository.dart';
+import '../../domain/models/note.dart';
+import 'package:proyectomovil/features/notes/infrastructure/repositories/note_repository.dart';
 
 class DeletedNoteDetailScreen extends StatelessWidget {
   const DeletedNoteDetailScreen({super.key});

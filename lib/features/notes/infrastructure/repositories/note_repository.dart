@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import '../models/note.dart';
+import 'package:proyectomovil/features/notes/domain/models/note.dart';
 
 class NoteRepository {
   final _db = FirebaseFirestore.instance;

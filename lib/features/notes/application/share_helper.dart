@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
-import '../data/models/note.dart';
+import 'package:proyectomovil/features/notes/domain/models/note.dart';
 
 class ShareHelper {
   static Future<void> shareNote(Note note, {BuildContext? context}) async {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
-import '../assistant/voice_assistant.dart';
+import 'package:proyectomovil/features/notes/application/voice_assistant.dart';
 
 class VoiceOverlay extends StatefulWidget {
   final VoiceAssistant assistant;

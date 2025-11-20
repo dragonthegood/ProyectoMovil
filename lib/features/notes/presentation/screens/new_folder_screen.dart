@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../data/repositories/folder_repository.dart';
+import 'package:proyectomovil/features/notes/infrastructure/repositories/folder_repository.dart';
 
 /// Pantalla para crear carpeta.
 /// - Manual: el usuario escribe y toca "Guardar".

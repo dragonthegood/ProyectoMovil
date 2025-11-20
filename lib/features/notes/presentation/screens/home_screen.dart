@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import '../data/models/note.dart';
-import '../data/repositories/note_repository.dart';
-import '../assistant/voice_assistant.dart';
-import '../data/models/folder.dart';
-import '../data/repositories/folder_repository.dart';
+import '../../domain/models/note.dart';
+import '../../infrastructure/repositories/note_repository.dart';
+import '../../application/voice_assistant.dart';
+import '../../domain/models/folder.dart';
+import '../../infrastructure/repositories/folder_repository.dart';
 
 // NUEVO: prefs singleton
-import '../data/local/preferences_service.dart';
+import 'package:proyectomovil/core/infrastructure/local/preferences_service.dart';
 import '../widgets/account_sheet.dart';
-import '../services/auth_service.dart';
+import 'package:proyectomovil/core/infrastructure/auth/auth_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

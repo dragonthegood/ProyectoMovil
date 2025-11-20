@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import '../data/models/note.dart';
-import '../data/models/folder.dart';                  // <-- importa el modelo
-import '../data/repositories/note_repository.dart';
-import '../data/repositories/folder_repository.dart'; // <-- repositorio de carpetas
+import 'package:proyectomovil/features/notes/domain/models/note.dart';
+import 'package:proyectomovil/features/notes/domain/models/folder.dart';
+import 'package:proyectomovil/features/notes/infrastructure/repositories/note_repository.dart';
+import 'package:proyectomovil/features/notes/infrastructure/repositories/folder_repository.dart';
+import 'package:proyectomovil/features/notes/presentation/widgets/voice_overlay.dart';
+import 'package:proyectomovil/features/notes/application/voice_assistant.dart';
+import 'package:proyectomovil/features/notes/application/share_helper.dart';
+
 
 class NoteDetailScreen extends StatelessWidget {
   const NoteDetailScreen({super.key});

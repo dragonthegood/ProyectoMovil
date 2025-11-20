@@ -1,42 +1,35 @@
 import 'package:flutter/material.dart';
-import '../data/models/note.dart';
-import '../data/repositories/note_repository.dart';
-import '../assistant/voice_assistant.dart';
-// Recordar última búsqueda por carpeta (opcional)
-import '../data/local/preferences_service.dart';
-import '../utils/share_helper.dart';
+import 'package:proyectomovil/features/notes/domain/models/note.dart';
+import 'package:proyectomovil/features/notes/infrastructure/repositories/note_repository.dart';
+import 'package:proyectomovil/features/notes/application/voice_assistant.dart';
+import 'package:proyectomovil/core/infrastructure/local/preferences_service.dart';
+import 'package:proyectomovil/features/notes/application/share_helper.dart';
 
-class FolderNotesScreen extends StatefulWidget {
-  final String folderId;
-  final String folderName;
-  const FolderNotesScreen({
-    super.key,
-    required this.folderId,
-    required this.folderName,
-  });
+class NotesScreen extends StatefulWidget {
+  const NotesScreen({super.key});
 
   @override
-  State<FolderNotesScreen> createState() => _FolderNotesScreenState();
+  State<NotesScreen> createState() => _NotesScreenState();
 }
 
-class _FolderNotesScreenState extends State<FolderNotesScreen> {
+class _NotesScreenState extends State<NotesScreen> {
   final _repo = NoteRepository();
   final _scroll = ScrollController();
-  bool _editMode = false;
 
-  // 🔎 Buscador
+  // 🔎 Estado de búsqueda
   final TextEditingController _searchCtrl = TextEditingController();
   String _query = '';
 
-  String get _folderSearchKey => 'search.folder.${widget.folderId}';
+  bool _editMode = false;
 
   @override
   void initState() {
     super.initState();
-    // Cargar última búsqueda guardada para ESTA carpeta (si existe)
-    final last = PreferencesService().getString(_folderSearchKey) ?? '';
+    // Cargar última búsqueda guardada (opcional)
+    final last = PreferencesService().lastSearchQuery ?? '';
     _query = last;
     _searchCtrl.text = last;
+   
   }
 
   @override
@@ -120,12 +113,11 @@ class _FolderNotesScreenState extends State<FolderNotesScreen> {
             ),
 
             // Título + buscador
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
               child: Text(
-                widget.folderName,
-                style: const TextStyle(
+                'Notas',
+                style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                   fontFamily: 'SFProDisplay',
@@ -133,6 +125,8 @@ class _FolderNotesScreenState extends State<FolderNotesScreen> {
               ),
             ),
             const SizedBox(height: 12),
+
+            // 🔎 Buscador ACTIVO (filtra en vivo)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
@@ -154,6 +148,7 @@ class _FolderNotesScreenState extends State<FolderNotesScreen> {
                     ),
                     border: InputBorder.none,
                     icon: const Icon(Icons.search),
+                    // Limpia rápidamente la búsqueda
                     suffixIcon: _query.isEmpty
                         ? null
                         : IconButton(
@@ -164,25 +159,21 @@ class _FolderNotesScreenState extends State<FolderNotesScreen> {
                                 _query = '';
                                 _searchCtrl.clear();
                               });
-                              // limpiar preferencia de esta carpeta
-                              PreferencesService().setString(
-                                _folderSearchKey,
-                                null,
-                              );
+                              PreferencesService().setLastSearchQuery(null);
                             },
                           ),
                   ),
                   onChanged: (v) {
                     setState(() => _query = v);
-                    // guardar por carpeta (vacío => eliminar)
-                    PreferencesService().setString(
-                      _folderSearchKey,
+                    // Guardar/limpiar preferencia según contenido
+                    PreferencesService().setLastSearchQuery(
                       v.trim().isEmpty ? null : v,
                     );
                   },
                 ),
               ),
             ),
+
             const SizedBox(height: 16),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
@@ -197,12 +188,13 @@ class _FolderNotesScreenState extends State<FolderNotesScreen> {
             ),
             const SizedBox(height: 12),
 
-            // LISTA con Scrollbar (no se superpone)
+            // LISTA con Scrollbar
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: StreamBuilder<List<Note>>(
-                  stream: _repo.watchByFolder(folderId: widget.folderId),
+                  // solo raíz (notas sin carpeta)
+                  stream: _repo.watchByFolder(folderId: null),
                   builder: (context, snap) {
                     final notes = snap.data ?? const <Note>[];
 
@@ -274,6 +266,7 @@ class _FolderNotesScreenState extends State<FolderNotesScreen> {
                                       onPressed: () =>
                                           _repo.setPinned(n.id, !n.pinned),
                                     ),
+                                    // NUEVO: compartir
                                     IconButton(
                                       tooltip: 'Compartir nota',
                                       icon: const Icon(
@@ -281,10 +274,7 @@ class _FolderNotesScreenState extends State<FolderNotesScreen> {
                                         color: Colors.blueGrey,
                                       ),
                                       onPressed: () async {
-                                        await ShareHelper.shareNote(
-                                          n,
-                                          context: context,
-                                        );
+                                        await ShareHelper.shareNote(n);
                                       },
                                     ),
                                     IconButton(
@@ -322,7 +312,7 @@ class _FolderNotesScreenState extends State<FolderNotesScreen> {
               ),
             ),
 
-            // BARRA INFERIOR (dentro del flujo)
+            // BARRA INFERIOR
             SafeArea(
               top: false,
               child: Padding(
@@ -343,7 +333,7 @@ class _FolderNotesScreenState extends State<FolderNotesScreen> {
                       ),
                     ),
                     StreamBuilder<List<Note>>(
-                      stream: _repo.watchByFolder(folderId: widget.folderId),
+                      stream: _repo.watchByFolder(folderId: null),
                       builder: (context, snap) {
                         final total = (snap.data ?? const <Note>[]).length;
                         return Container(
@@ -367,11 +357,7 @@ class _FolderNotesScreenState extends State<FolderNotesScreen> {
                     ),
                     IconButton(
                       onPressed: () {
-                        Navigator.pushNamed(
-                          context,
-                          '/new-note',
-                          arguments: {'folderId': widget.folderId},
-                        );
+                        Navigator.pushNamed(context, '/new-note');
                       },
                       icon: const Icon(
                         Icons.note_add_outlined,
